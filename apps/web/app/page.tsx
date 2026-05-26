@@ -101,8 +101,8 @@ export default function DashboardPage() {
 
   return (
     <WorkspaceShell
-      title="Email RFQ Intake Dashboard"
-      description="Capture inbound RFQs, route them into the quote queue, and hand them off for draft creation or sales approval."
+      title="RFQ Intake Dashboard"
+      description="Capture inbound RFQs from email or Slack, route them into one queue, and hand them off for draft creation or sales approval."
       selectedUser={selectedUser}
       selectedUserId={selectedUserId}
       users={users}
@@ -130,7 +130,7 @@ export default function DashboardPage() {
         <form className="panel" onSubmit={handleIntakeSubmit}>
           <div className="stack">
             <h2>Simulate inbound RFQ email</h2>
-            <p className="panel-subtitle">Use the normalized intake contract so local demos match the real email entry point.</p>
+            <p className="panel-subtitle">Use the normalized email intake contract. Slack uses the signed connector endpoint and appears in the same queue.</p>
           </div>
           <div className="field-grid">
             <label>
@@ -170,10 +170,13 @@ export default function DashboardPage() {
                     <h3>{rfq.reference}</h3>
                     <div className="meta">{rfq.subject}</div>
                   </div>
-                  <span className={`badge ${rfq.workflowState === "approved" ? "success" : ""}`}>{formatWorkflowState(rfq.workflowState)}</span>
+                  <div className="badge-row">
+                    <span className="badge dark">{rfq.sourceLabel}</span>
+                    <span className={`badge ${rfq.workflowState === "approved" ? "success" : ""}`}>{formatWorkflowState(rfq.workflowState)}</span>
+                  </div>
                 </div>
-                <div className="meta">{rfq.senderName ?? rfq.senderEmail}</div>
-                <div className="mono">{rfq.senderEmail}</div>
+                <div className="meta">{rfq.senderName ?? rfq.senderEmail ?? rfq.sourceLabel}</div>
+                {rfq.senderEmail ? <div className="mono">{rfq.senderEmail}</div> : <div className="hint">No sender email recorded.</div>}
                 <div className="hint">Received {new Date(rfq.receivedAt).toLocaleString()}</div>
               </Link>
             ))}

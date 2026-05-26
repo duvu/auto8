@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Headers, Param, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Post, Put, Req } from "@nestjs/common";
 
-import type { IntakeEmailInput, SaveQuoteInput } from "@auto8/shared";
+import type { IntakeEmailInput, SaveQuoteInput, SlackRfqIntakeInput } from "@auto8/shared";
 
 import { RfqsService } from "./rfqs.service";
 
@@ -11,6 +11,15 @@ export class RfqsController {
   @Post("rfqs/intake-email")
   async intakeEmail(@Body() body: IntakeEmailInput) {
     return this.rfqsService.intakeEmail(body);
+  }
+
+  @Post("rfqs/intake-slack")
+  async intakeSlack(
+    @Body() body: SlackRfqIntakeInput,
+    @Req() request: { rawBody?: Buffer; headers: Record<string, string | string[] | undefined> }
+  ) {
+    const rawPayload = request.rawBody?.toString("utf8") ?? JSON.stringify(body);
+    return this.rfqsService.intakeSlack(body, rawPayload, request.headers);
   }
 
   @Get("rfqs")

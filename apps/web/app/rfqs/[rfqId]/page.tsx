@@ -16,7 +16,7 @@ function formatState(value: string) {
 
 function buildDraft(detail: RfqDetailView | null): SaveQuoteInput {
   return {
-    customerName: detail?.quote?.customerName ?? detail?.senderName ?? "",
+    customerName: detail?.quote?.customerName ?? detail?.senderName ?? detail?.senderEmail ?? detail?.sourceLabel ?? "",
     customerCompany: detail?.quote?.customerCompany ?? "",
     notes: detail?.quote?.notes ?? "",
     lineItems:
@@ -151,7 +151,7 @@ export default function RfqDetailPage() {
   return (
     <WorkspaceShell
       title={`${detail.reference} / Quote Workspace`}
-      description="Review inbound RFQ details, maintain the draft quote, and run the approval handoff without leaving the workflow."
+      description="Review inbound RFQ details, maintain the draft quote, and run the approval handoff without leaving the workflow regardless of source."
       selectedUser={selectedUser}
       selectedUserId={selectedUserId}
       users={users}
@@ -174,22 +174,47 @@ export default function RfqDetailPage() {
           <div className="panel-header">
             <div className="stack">
               <h2>Inbound RFQ</h2>
-              <p className="panel-subtitle">Original email content and current workflow state.</p>
+              <p className="panel-subtitle">Original intake content and current workflow state.</p>
             </div>
-            <span className={`badge ${detail.workflowState === "approved" ? "success" : ""}`}>{formatState(detail.workflowState)}</span>
+            <div className="badge-row">
+              <span className="badge dark">{detail.sourceLabel}</span>
+              <span className={`badge ${detail.workflowState === "approved" ? "success" : ""}`}>{formatState(detail.workflowState)}</span>
+            </div>
           </div>
 
           <div className="field-grid">
             <div>
-              <div className="meta">Sender</div>
-              <div>{detail.senderName ?? "Unknown sender"}</div>
-              <div className="mono">{detail.senderEmail}</div>
+              <div className="meta">Contact</div>
+              <div>{detail.senderName ?? detail.slackSubmitterName ?? "Unknown sender"}</div>
+              {detail.senderEmail ? <div className="mono">{detail.senderEmail}</div> : <div className="hint">No sender email recorded.</div>}
+            </div>
+            <div>
+              <div className="meta">Source</div>
+              <div>{detail.sourceLabel}</div>
             </div>
             <div>
               <div className="meta">Received</div>
               <div>{new Date(detail.receivedAt).toLocaleString()}</div>
             </div>
           </div>
+
+          {detail.sourceType === "slack" ? (
+            <div className="field-grid">
+              <div>
+                <div className="meta">Workspace</div>
+                <div>{detail.slackWorkspaceName ?? detail.slackWorkspaceId ?? "Unknown workspace"}</div>
+              </div>
+              <div>
+                <div className="meta">Channel</div>
+                <div>{detail.slackChannelName ? `#${detail.slackChannelName}` : detail.slackChannelId ?? "Unknown channel"}</div>
+              </div>
+              <div>
+                <div className="meta">Slack submitter</div>
+                <div>{detail.slackSubmitterName ?? detail.slackSubmitterId ?? "Unknown submitter"}</div>
+                {detail.slackSubmitterEmail ? <div className="mono">{detail.slackSubmitterEmail}</div> : null}
+              </div>
+            </div>
+          ) : null}
 
           <div>
             <div className="meta">Subject</div>

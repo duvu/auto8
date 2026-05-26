@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
@@ -7,9 +8,11 @@ import { PrismaClient, UserRole } from "@prisma/client";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { SlackRfqIntakeInput } from "@auto8/shared";
+
 import { createApp } from "../src/bootstrap";
 
-const workspaceDir = join(import.meta.dirname, "..");
+const workspaceDir = join(__dirname, "..");
 const testDbPath = join(workspaceDir, "prisma", "test.db");
 
 const prisma = new PrismaClient();
@@ -35,7 +38,7 @@ describe("auto8 RFQ workflow API", () => {
     await prisma.quoteLineItem.deleteMany();
     await prisma.quote.deleteMany();
     await prisma.rfq.deleteMany();
-    await prisma.rfqEmail.deleteMany();
+    await prisma.rfqIntake.deleteMany();
     await prisma.user.deleteMany();
 
     const quoteOperator = await prisma.user.create({
@@ -89,7 +92,53 @@ describe("auto8 RFQ workflow API", () => {
     };
   }
 
-  it("captures inbound RFQ emails and creates trackable work items", async () => {
+  function buildSlackPayload(overrides: Partial<SlackRfqIntakeInput> = {}): SlackRfqIntakeInput {
+    return {
+      workspaceId: "W_AUTO8_TEST",
+      workspaceName: "Auto8 Test Workspace",
+      channelId: "C_RFQ_TEST",
+      channelName: "rfq-intake",
+      submitterId: "U_BUYER_TEST",
+      submitterName: "Buyer Test",
+      submitterEmail: "buyer@test.example",
+      subject: "RFQ: oil filters",
+      body: "Need pricing for 15 oil filters.",
+      submittedAt: "2026-05-26T08:00:00.000Z",
+      ...overrides
+    };
+  }
+
+  function signSlackPayload(payload: SlackRfqIntakeInput) {
+    const rawPayload = JSON.stringify(payload);
+    const timestamp = `${Math.floor(Date.now() / 1000)}`;
+    const signature = `v0=${createHmac("sha256", process.env.SLACK_SIGNING_SECRET ?? "")
+      .update(`v0:${timestamp}:${rawPayload}`)
+      .digest("hex")}`;
+
+    return { rawPayload, timestamp, signature };
+  }
+
+  async function createSlackRfq(overrides: Partial<SlackRfqIntakeInput> = {}) {
+    const payload = buildSlackPayload(overrides);
+    const { rawPayload, timestamp, signature } = signSlackPayload(payload);
+    const response = await request(app.getHttpServer())
+      .post("/api/rfqs/intake-slack")
+      .set("Content-Type", "application/json")
+      .set("x-slack-request-timestamp", timestamp)
+      .set("x-slack-signature", signature)
+      .send(rawPayload);
+
+    expect(response.status).toBe(201);
+    return response.body as {
+      id: string;
+      quote: { id: string } | null;
+      workflowState: string;
+      history: Array<{ status: string }>;
+      sourceType: string;
+    };
+  }
+
+  it("keeps the email intake path working with source-aware RFQs", async () => {
     const response = await request(app.getHttpServer())
       .post("/api/rfqs/intake-email")
       .send({
@@ -103,7 +152,37 @@ describe("auto8 RFQ workflow API", () => {
     expect(response.status).toBe(201);
     expect(response.body.reference).toMatch(/^RFQ-/);
     expect(response.body.workflowState).toBe("new");
+    expect(response.body.sourceType).toBe("email");
     expect(response.body.quote).toBeNull();
+  });
+
+  it("captures verified Slack RFQs and records source metadata", async () => {
+    const response = await createSlackRfq();
+
+    expect(response.workflowState).toBe("new");
+    expect(response.sourceType).toBe("slack");
+
+    const detailResponse = await request(app.getHttpServer()).get(`/api/rfqs/${response.id}`);
+    expect(detailResponse.status).toBe(200);
+    expect(detailResponse.body.sourceLabel).toBe("Slack / #rfq-intake");
+    expect(detailResponse.body.slackWorkspaceName).toBe("Auto8 Test Workspace");
+    expect(detailResponse.body.slackChannelName).toBe("rfq-intake");
+    expect(detailResponse.body.slackSubmitterName).toBe("Buyer Test");
+  });
+
+  it("rejects untrusted Slack requests without creating RFQs", async () => {
+    const payload = buildSlackPayload();
+    const beforeCount = await prisma.rfq.count();
+
+    const response = await request(app.getHttpServer())
+      .post("/api/rfqs/intake-slack")
+      .set("Content-Type", "application/json")
+      .set("x-slack-request-timestamp", `${Math.floor(Date.now() / 1000)}`)
+      .set("x-slack-signature", "v0=invalid")
+      .send(JSON.stringify(payload));
+
+    expect(response.status).toBe(401);
+    expect(await prisma.rfq.count()).toBe(beforeCount);
   });
 
   it("saves a draft quote with persistent line items", async () => {
@@ -171,8 +250,12 @@ describe("auto8 RFQ workflow API", () => {
     expect(detailResponse.body.quote.status).toBe("pending_approval");
   });
 
-  it("completes the happy path from RFQ intake to approved quote", async () => {
-    const rfq = await createRfq();
+  it("completes the happy path from Slack intake to approved quote", async () => {
+    const rfq = await createSlackRfq({
+      subject: "RFQ: brake pads and rotors",
+      body: "Need pricing for 40 brake pad kits and 10 rotor pairs.",
+      submitterName: "Northwind Fleet"
+    });
 
     const savedDraft = await request(app.getHttpServer())
       .put(`/api/rfqs/${rfq.id}/quote`)
@@ -218,5 +301,6 @@ describe("auto8 RFQ workflow API", () => {
       "pending_approval",
       "approved"
     ]);
+    expect(approved.body.sourceType).toBe("slack");
   });
 });

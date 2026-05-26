@@ -9,7 +9,7 @@ async function main() {
   await prisma.quoteLineItem.deleteMany();
   await prisma.quote.deleteMany();
   await prisma.rfq.deleteMany();
-  await prisma.rfqEmail.deleteMany();
+  await prisma.rfqIntake.deleteMany();
   await prisma.user.deleteMany();
 
   const quoteOperator = await prisma.user.create({
@@ -28,10 +28,12 @@ async function main() {
     }
   });
 
-  const freshEmail = await prisma.rfqEmail.create({
+  const freshEmail = await prisma.rfqIntake.create({
     data: {
-      fromEmail: "buyer@northwind.example",
-      fromName: "Nina Buyer",
+      sourceType: "email",
+      sourceLabel: "Email",
+      senderEmail: "buyer@northwind.example",
+      senderName: "Nina Buyer",
       subject: "RFQ: brake pads for fleet maintenance",
       body: "Need pricing for 40 brake pad kits for our June maintenance cycle.",
       receivedAt: new Date("2026-05-25T09:00:00.000Z"),
@@ -43,14 +45,16 @@ async function main() {
     data: {
       reference: "RFQ-1001",
       workflowState: RfqWorkflowState.new,
-      emailId: freshEmail.id
+      intakeId: freshEmail.id
     }
   });
 
-  const approvalEmail = await prisma.rfqEmail.create({
+  const approvalEmail = await prisma.rfqIntake.create({
     data: {
-      fromEmail: "procurement@eastgate.example",
-      fromName: "Evan Procurement",
+      sourceType: "email",
+      sourceLabel: "Email",
+      senderEmail: "procurement@eastgate.example",
+      senderName: "Evan Procurement",
       subject: "RFQ: spark plugs and air filters",
       body: "Please quote 80 spark plugs and 30 air filters for monthly service jobs.",
       receivedAt: new Date("2026-05-24T14:30:00.000Z"),
@@ -62,7 +66,35 @@ async function main() {
     data: {
       reference: "RFQ-1002",
       workflowState: RfqWorkflowState.pending_approval,
-      emailId: approvalEmail.id
+      intakeId: approvalEmail.id
+    }
+  });
+
+  const slackIntake = await prisma.rfqIntake.create({
+    data: {
+      sourceType: "slack",
+      sourceLabel: "Slack / #rfqs",
+      senderEmail: "avery@westfleet.example",
+      senderName: "Avery Service Lead",
+      subject: "RFQ: wiper blades for depot vans",
+      body: "Slack intake from depot ops: please quote 55 wiper blade sets for next week's service rotation.",
+      receivedAt: new Date("2026-05-25T12:15:00.000Z"),
+      rawPayload: JSON.stringify({ seed: true, messageId: "seed-rfq-3", source: "slack" }),
+      slackWorkspaceId: "W_AUTO8_DEMO",
+      slackWorkspaceName: "Auto8 Demo Workspace",
+      slackChannelId: "C_RFQ_DEMO",
+      slackChannelName: "rfqs",
+      slackSubmitterId: "U_SERVICE_LEAD",
+      slackSubmitterName: "Avery Service Lead",
+      slackSubmitterEmail: "avery@westfleet.example"
+    }
+  });
+
+  await prisma.rfq.create({
+    data: {
+      reference: "RFQ-1003",
+      workflowState: RfqWorkflowState.new,
+      intakeId: slackIntake.id
     }
   });
 

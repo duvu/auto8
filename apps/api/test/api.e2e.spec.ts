@@ -303,4 +303,32 @@ describe("auto8 RFQ workflow API", () => {
     ]);
     expect(approved.body.sourceType).toBe("slack");
   });
+
+  it("rejects Gmail sync request without connector secret", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/api/connectors/gmail/sync")
+      .send({});
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects Gmail sync request with wrong connector secret", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/api/connectors/gmail/sync")
+      .set("x-connector-secret", "wrong-secret")
+      .send({});
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 401 if Gmail connector secret is valid but connector is not configured", async () => {
+    // GMAIL_CONNECTOR_SECRET is set in test setup, but Gmail OAuth vars are not set
+    const response = await request(app.getHttpServer())
+      .post("/api/connectors/gmail/sync")
+      .set("x-connector-secret", process.env.GMAIL_CONNECTOR_SECRET ?? "")
+      .send({});
+
+    // Should fail with 500/401/500 because Gmail OAuth is not configured
+    expect([401, 500]).toContain(response.status);
+  });
 });

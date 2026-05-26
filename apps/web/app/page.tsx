@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
+import { formatState } from "../lib/format";
+
 import type { IntakeEmailInput, RfqListItemView, UserSummary } from "@auto8/shared";
 
 import { WorkspaceShell } from "../components/workspace-shell";
@@ -18,7 +20,7 @@ const initialIntakeForm: IntakeEmailInput = {
 };
 
 function formatWorkflowState(value: string) {
-  return value.replaceAll("_", " ");
+  return formatState(value);
 }
 
 export default function DashboardPage() {

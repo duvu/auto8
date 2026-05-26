@@ -50,7 +50,7 @@ model RfqIntake {
   subject            String
   body               String
   receivedAt         DateTime
-  rawPayload         String?
+  rawPayload  String
   slackWorkspaceId   String?
   slackWorkspaceName String?
   slackChannelId     String?
@@ -58,6 +58,8 @@ model RfqIntake {
   slackSubmitterId   String?
   slackSubmitterName String?
   slackSubmitterEmail String?
+  gmailMessageId     String?       @unique
+  gmailThreadId      String?
   createdAt          DateTime      @default(now())
   rfq                Rfq?
 }

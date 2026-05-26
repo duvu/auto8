@@ -60,6 +60,15 @@ type NormalizedRfqIntake = {
   slackSubmitterId?: string | null;
   slackSubmitterName?: string | null;
   slackSubmitterEmail?: string | null;
+  gmailMessageId?: string | null;
+  gmailThreadId?: string | null;
+};
+
+export type GmailSyncSummary = {
+  imported: number;
+  skipped: number;
+  failed: number;
+  importedReferences: string[];
 };
 
 @Injectable()
@@ -102,6 +111,56 @@ export class RfqsService {
       slackSubmitterName: this.optionalString(input.submitterName),
       slackSubmitterEmail: this.normalizeOptionalEmail(input.submitterEmail)
     });
+  }
+
+  async syncGmail(gmailService: { fetchMessages: (q?: string) => Promise<any[]>; isConfigured: () => boolean }, query?: string): Promise<GmailSyncSummary> {
+    const summary: GmailSyncSummary = { imported: 0, skipped: 0, failed: 0, importedReferences: [] };
+
+    if (!gmailService.isConfigured()) {
+      throw new Error("Gmail connector is not configured.");
+    }
+
+    const messages = await gmailService.fetchMessages(query);
+
+    for (const msg of messages) {
+      try {
+        // Deduplication: skip if already imported
+        const existing = await this.prisma.rfqIntake.findUnique({ where: { gmailMessageId: msg.messageId } });
+        if (existing) {
+          summary.skipped++;
+          continue;
+        }
+
+        const { fromEmail, fromName } = parseFromHeader(msg.from ?? "");
+        const subject = msg.subject?.trim() || "(no subject)";
+        const body = msg.body?.trim() || "(empty)";
+
+        if (!fromEmail) {
+          summary.failed++;
+          continue;
+        }
+
+        const detail = await this.createRfqFromIntake({
+          sourceType: "email",
+          sourceLabel: "Gmail",
+          senderEmail: fromEmail,
+          senderName: fromName,
+          subject,
+          body,
+          receivedAt: msg.receivedAt,
+          rawPayload: JSON.stringify(msg),
+          gmailMessageId: msg.messageId,
+          gmailThreadId: msg.threadId
+        });
+
+        summary.imported++;
+        summary.importedReferences.push(detail.reference);
+      } catch (error) {
+        summary.failed++;
+      }
+    }
+
+    return summary;
   }
 
   async listRfqs(): Promise<RfqListItemView[]> {
@@ -166,20 +225,8 @@ export class RfqsService {
           }
         });
 
-        await tx.quoteStatusEvent.create({
-          data: {
-            quoteId: quote.id,
-            actorId: actor.id,
-            status: QuoteStatus.draft
-          }
-        });
-
-        await tx.rfq.update({
-          where: { id: rfqId },
-          data: {
-            workflowState: "draft"
-          }
-        });
+        await this.recordStatusEvent(tx, quote.id, QuoteStatus.draft, actor.id);
+        await this.updateWorkflowState(tx, rfqId, "draft");
       });
     } else {
       const existingQuoteId = rfq.quote.id;
@@ -198,12 +245,7 @@ export class RfqsService {
           }
         });
 
-        await tx.rfq.update({
-          where: { id: rfqId },
-          data: {
-            workflowState: "draft"
-          }
-        });
+        await this.updateWorkflowState(tx, rfqId, "draft");
       });
     }
 
@@ -216,8 +258,7 @@ export class RfqsService {
     const quote = await this.prisma.quote.findUnique({
       where: { id: quoteId },
       include: {
-        lineItems: true,
-        rfq: true
+        lineItems: true // rfqId scalar used directly; rfq relation not needed
       }
     });
 
@@ -242,20 +283,8 @@ export class RfqsService {
         }
       });
 
-      await tx.quoteStatusEvent.create({
-        data: {
-          quoteId,
-          actorId,
-          status: QuoteStatus.pending_approval
-        }
-      });
-
-      await tx.rfq.update({
-        where: { id: quote.rfqId },
-        data: {
-          workflowState: "pending_approval"
-        }
-      });
+      await this.recordStatusEvent(tx, quoteId, QuoteStatus.pending_approval, actorId);
+      await this.updateWorkflowState(tx, quote.rfqId, "pending_approval");
     });
 
     return this.getRfqDetail(quote.rfqId);
@@ -290,20 +319,8 @@ export class RfqsService {
         }
       });
 
-      await tx.quoteStatusEvent.create({
-        data: {
-          quoteId,
-          actorId: actor.id,
-          status: QuoteStatus.approved
-        }
-      });
-
-      await tx.rfq.update({
-        where: { id: quote.rfqId },
-        data: {
-          workflowState: "approved"
-        }
-      });
+      await this.recordStatusEvent(tx, quoteId, QuoteStatus.approved, actor.id);
+      await this.updateWorkflowState(tx, quote.rfqId, "approved");
     });
 
     return this.getRfqDetail(quote.rfqId);
@@ -322,13 +339,15 @@ export class RfqsService {
           body: input.body,
           receivedAt: new Date(input.receivedAt),
           rawPayload: input.rawPayload,
-          slackWorkspaceId: input.slackWorkspaceId ?? null,
-          slackWorkspaceName: input.slackWorkspaceName ?? null,
-          slackChannelId: input.slackChannelId ?? null,
-          slackChannelName: input.slackChannelName ?? null,
-          slackSubmitterId: input.slackSubmitterId ?? null,
-          slackSubmitterName: input.slackSubmitterName ?? null,
-          slackSubmitterEmail: input.slackSubmitterEmail ?? null
+          slackWorkspaceId: input.slackWorkspaceId,
+          slackWorkspaceName: input.slackWorkspaceName,
+          slackChannelId: input.slackChannelId,
+          slackChannelName: input.slackChannelName,
+          slackSubmitterId: input.slackSubmitterId,
+          slackSubmitterName: input.slackSubmitterName,
+          slackSubmitterEmail: input.slackSubmitterEmail,
+          gmailMessageId: input.gmailMessageId,
+          gmailThreadId: input.gmailThreadId
         }
       });
 
@@ -433,6 +452,23 @@ export class RfqsService {
     if (providedBuffer.length !== expectedBuffer.length || !timingSafeEqual(providedBuffer, expectedBuffer)) {
       throw new UnauthorizedException("Slack request signature is invalid.");
     }
+  }
+
+  private async updateWorkflowState(
+    tx: Prisma.TransactionClient,
+    rfqId: string,
+    state: "new" | "draft" | "pending_approval" | "approved"
+  ) {
+    return tx.rfq.update({ where: { id: rfqId }, data: { workflowState: state } });
+  }
+
+  private async recordStatusEvent(
+    tx: Prisma.TransactionClient,
+    quoteId: string,
+    status: QuoteStatus,
+    actorId?: string
+  ) {
+    return tx.quoteStatusEvent.create({ data: { quoteId, actorId, status } });
   }
 
   private readHeader(headers: RequestHeaders, name: string) {
@@ -542,12 +578,26 @@ export class RfqsService {
   }
 
   private normalizeOptionalEmail(value: string | null | undefined) {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed.toLowerCase() : null;
+    return this.optionalString(value)?.toLowerCase() ?? null;
   }
 
   private optionalString(value: string | null | undefined) {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed : null;
+    return value?.trim() || null;
   }
+}
+
+function parseFromHeader(from: string): { fromEmail: string | null; fromName: string | null } {
+  if (!from) return { fromEmail: null, fromName: null };
+
+  // "Display Name <email@example.com>"
+  const angleMatch = from.match(/^(.*?)\s*<([^>]+)>\s*$/);
+  if (angleMatch) {
+    const fromName = angleMatch[1].replace(/^["']|["']$/g, "").trim() || null;
+    const fromEmail = angleMatch[2].trim().toLowerCase() || null;
+    return { fromEmail, fromName };
+  }
+
+  // bare email
+  const bare = from.trim().toLowerCase();
+  return { fromEmail: bare || null, fromName: null };
 }

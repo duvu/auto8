@@ -56,6 +56,20 @@ Database files live under `apps/api/prisma/` and are ignored by git.
 - If `SLACK_ALLOWED_WORKSPACE_IDS` is set, Auto8 only accepts Slack RFQs from those workspace IDs.
 - The seeded Slack RFQ and the automated API suite provide the fastest way to verify source-aware behavior locally.
 
+## Gmail Connector Notes
+
+- Gmail sync uses `POST /api/connectors/gmail/sync` (internal endpoint, requires `x-connector-secret` header).
+- Set `GMAIL_CONNECTOR_SECRET` to a strong random value. This is the only auth required to trigger a sync.
+- Gmail OAuth setup (one-time, per mailbox):
+  1. Create a Google Cloud project and enable the Gmail API.
+  2. Create OAuth 2.0 credentials (Desktop app type).
+  3. Obtain a refresh token with `gmail.readonly` scope for the target mailbox.
+  4. Set `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` in `apps/api/.env`.
+- `GMAIL_SEARCH_QUERY` (default: `is:unread`) controls which messages are fetched.
+- `GMAIL_MAX_RESULTS` (default: `20`) caps messages fetched per sync run.
+- Duplicate protection: each Gmail message is tracked by its Gmail message ID. Repeated syncs skip already-imported messages.
+- Trigger a sync locally: `curl -X POST http://localhost:4000/api/connectors/gmail/sync -H "x-connector-secret: <your-secret>" -H "Content-Type: application/json" -d '{}'`
+
 ## Useful Commands
 
 - `npm run dev`: build shared contracts once, then start API and web together

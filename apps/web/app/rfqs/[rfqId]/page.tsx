@@ -8,11 +8,8 @@ import type { QuoteLineItemInput, RfqDetailView, SaveQuoteInput, UserSummary } f
 
 import { WorkspaceShell } from "../../../components/workspace-shell";
 import { approveQuote, fetchRfqDetail, fetchUsers, saveDraftQuote, submitQuote } from "../../../lib/api";
+import { formatState } from "../../../lib/format";
 import { useDemoUser } from "../../../lib/use-demo-user";
-
-function formatState(value: string) {
-  return value.replaceAll("_", " ");
-}
 
 function buildDraft(detail: RfqDetailView | null): SaveQuoteInput {
   return {

@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  quote_operator
+  sales_approver
+}
+
+enum QuoteStatus {
+  draft
+  pending_approval
+  approved
+}
+
+enum RfqWorkflowState {
+  new
+  draft
+  pending_approval
+  approved
+}
+
+model User {
+  id             String             @id @default(cuid())
+  email          String             @unique
+  name           String
+  role           UserRole
+  createdAt      DateTime           @default(now())
+  quotesCreated  Quote[]            @relation("QuoteCreatedBy")
+  quotesApproved Quote[]            @relation("QuoteApprovedBy")
+  statusEvents   QuoteStatusEvent[]
+}
+
+model RfqEmail {
+  id         String   @id @default(cuid())
+  fromEmail  String
+  fromName   String?
+  subject    String
+  body       String
+  receivedAt DateTime
+  rawPayload String?
+  createdAt  DateTime @default(now())
+  rfq        Rfq?
+}
+
+model Rfq {
+  id            String           @id @default(cuid())
+  reference     String           @unique
+  workflowState RfqWorkflowState @default(new)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  emailId       String           @unique
+  email         RfqEmail         @relation(fields: [emailId], references: [id])
+  quote         Quote?
+}
+
+model Quote {
+  id            String             @id @default(cuid())
+  customerName  String
+  customerCompany String
+  notes         String?
+  status        QuoteStatus        @default(draft)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  rfqId         String             @unique
+  rfq           Rfq                @relation(fields: [rfqId], references: [id])
+  createdById   String
+  createdBy     User               @relation("QuoteCreatedBy", fields: [createdById], references: [id])
+  approvedById  String?
+  approvedBy    User?              @relation("QuoteApprovedBy", fields: [approvedById], references: [id])
+  lineItems     QuoteLineItem[]
+  statusEvents  QuoteStatusEvent[]
+}
+
+model QuoteLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int
+  unitPrice   Int
+  sortOrder   Int
+  createdAt   DateTime @default(now())
+  quoteId     String
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+model QuoteStatusEvent {
+  id        String      @id @default(cuid())
+  status    QuoteStatus
+  createdAt DateTime    @default(now())
+  quoteId   String
+  quote     Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actor     User?       @relation(fields: [actorId], references: [id])
+}

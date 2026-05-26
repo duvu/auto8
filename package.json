@@ -1,0 +1,23 @@
+{
+  "name": "auto8",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build --workspace @auto8/shared && concurrently \"npm run dev --workspace @auto8/api\" \"npm run dev --workspace @auto8/web\"",
+    "build": "npm run build --workspace @auto8/shared && npm run build --workspace @auto8/api && npm run build --workspace @auto8/web",
+    "test": "npm run build --workspace @auto8/shared && npm run test --workspace @auto8/api",
+    "typecheck": "npm run typecheck --workspace @auto8/shared && npm run typecheck --workspace @auto8/api && npm run typecheck --workspace @auto8/web",
+    "db:generate": "npm run prisma:generate --workspace @auto8/api",
+    "db:migrate": "npm run prisma:migrate --workspace @auto8/api",
+    "db:seed": "npm run prisma:seed --workspace @auto8/api"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

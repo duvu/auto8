@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+.env
+apps/api/.env
+apps/web/.env
+apps/web/.env.local
+.opencode/
+.serena/

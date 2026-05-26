@@ -27,5 +27,5 @@
 
 ## 5. Repository Publication
 
-- [ ] 5.1 Create the public GitHub repository `auto8` and push the MVP scaffold
-- [ ] 5.2 Verify the published project can be cloned, bootstrapped, and run through the MVP1 happy path
+- [x] 5.1 Create the public GitHub repository `auto8` and push the MVP scaffold
+- [x] 5.2 Verify the published project can be cloned, bootstrapped, and run through the MVP1 happy path

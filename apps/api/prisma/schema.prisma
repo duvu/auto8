@@ -3,13 +3,14 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 enum UserRole {
   quote_operator
   sales_approver
+  admin
 }
 
 enum QuoteStatus {
@@ -31,14 +32,19 @@ enum RfqSourceType {
 }
 
 model User {
-  id             String             @id @default(cuid())
-  email          String             @unique
-  name           String
-  role           UserRole
-  createdAt      DateTime           @default(now())
-  quotesCreated  Quote[]            @relation("QuoteCreatedBy")
-  quotesApproved Quote[]            @relation("QuoteApprovedBy")
-  statusEvents   QuoteStatusEvent[]
+  id                   String               @id @default(cuid())
+  email                String               @unique
+  name                 String
+  role                 UserRole
+  passwordHash         String               @default("")
+  isActive             Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  quotesCreated        Quote[]              @relation("QuoteCreatedBy")
+  quotesApproved       Quote[]              @relation("QuoteApprovedBy")
+  statusEvents         QuoteStatusEvent[]
+  emailSends           QuoteEmailSend[]
+  refreshTokens        RefreshToken[]
+  passwordResetTokens  PasswordResetToken[]
 }
 
 model RfqIntake {
@@ -58,41 +64,73 @@ model RfqIntake {
   slackSubmitterId   String?
   slackSubmitterName String?
   slackSubmitterEmail String?
+  slackMessageId     String?       @unique
   gmailMessageId     String?       @unique
   gmailThreadId      String?
+  isRfq              Boolean       @default(true)
+  classificationScore Float?
+  classificationReason String?
+  rfqPipelineStatus  String        @default("new")
+  attachmentContent  String?
+  connectorId        String?
+  connector          Connector?    @relation(fields: [connectorId], references: [id])
   createdAt          DateTime      @default(now())
   rfq                Rfq?
+  attachments        RfqAttachment[]
 }
 
 model Rfq {
-  id            String           @id @default(cuid())
-  reference     String           @unique
-  workflowState RfqWorkflowState @default(new)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  intakeId       String          @unique
-  intake         RfqIntake       @relation(fields: [intakeId], references: [id])
-  quote         Quote?
+  id              String             @id @default(cuid())
+  reference       String             @unique
+  workflowState   RfqWorkflowState   @default(new)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  intakeId        String             @unique
+  intake          RfqIntake          @relation(fields: [intakeId], references: [id])
+  quote           Quote?
+  extractedItems  RfqExtractedItem[]
+  extractedCustomer RfqExtractedCustomer?
+}
+
+model RfqExtractedItem {
+  id               String         @id @default(cuid())
+  rfqId            String
+  rfq              Rfq            @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  partNumber       String?
+  description      String
+  quantity         Float?
+  unit             String?
+  confidence       Float
+  confidenceReason String?
+  createdAt        DateTime       @default(now())
+  matches          RfqItemMatch[]
 }
 
 model Quote {
-  id            String             @id @default(cuid())
-  customerName  String
+  id              String             @id @default(cuid())
+  customerName    String
   customerCompany String
-  notes         String?
-  status        QuoteStatus        @default(draft)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  submittedAt   DateTime?
-  approvedAt    DateTime?
-  rfqId         String             @unique
-  rfq           Rfq                @relation(fields: [rfqId], references: [id])
-  createdById   String
-  createdBy     User               @relation("QuoteCreatedBy", fields: [createdById], references: [id])
-  approvedById  String?
-  approvedBy    User?              @relation("QuoteApprovedBy", fields: [approvedById], references: [id])
-  lineItems     QuoteLineItem[]
-  statusEvents  QuoteStatusEvent[]
+  notes           String?
+  discount        Float              @default(0)
+  tax             Float              @default(0)
+  grandTotal      Float?
+  paymentTerms    String?
+  deliveryTerms   String?
+  validityDays    Int?
+  status          QuoteStatus        @default(draft)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  rfqId           String             @unique
+  rfq             Rfq                @relation(fields: [rfqId], references: [id])
+  createdById     String
+  createdBy       User               @relation("QuoteCreatedBy", fields: [createdById], references: [id])
+  approvedById    String?
+  approvedBy      User?              @relation("QuoteApprovedBy", fields: [approvedById], references: [id])
+  lineItems       QuoteLineItem[]
+  statusEvents    QuoteStatusEvent[]
+  email           QuoteEmail?
 }
 
 model QuoteLineItem {
@@ -101,9 +139,67 @@ model QuoteLineItem {
   quantity    Int
   unitPrice   Int
   sortOrder   Int
+  discount    Float    @default(0)
+  subtotal    Float?
+  productId   String?
   createdAt   DateTime @default(now())
   quoteId     String
   quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id])
+}
+
+model IngestionRun {
+  id             String     @id @default(cuid())
+  connectorName  String
+  startedAt      DateTime
+  finishedAt     DateTime
+  imported       Int        @default(0)
+  skipped        Int        @default(0)
+  failed         Int        @default(0)
+  status         String
+  errorMessage   String?
+  connectorId    String?
+  connector      Connector? @relation(fields: [connectorId], references: [id])
+  connectorLabel String?
+  createdAt      DateTime   @default(now())
+}
+
+enum QuoteEmailStatus {
+  draft
+  sent
+  error
+}
+
+enum QuoteEmailSendStatus {
+  sent
+  error
+}
+
+model QuoteEmail {
+  id             String             @id @default(cuid())
+  quoteId        String             @unique
+  quote          Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  subject        String
+  body           String
+  recipientEmail String
+  status         QuoteEmailStatus   @default(draft)
+  autoSend       Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  sends          QuoteEmailSend[]
+}
+
+model QuoteEmailSend {
+  id             String               @id @default(cuid())
+  quoteEmailId   String
+  quoteEmail     QuoteEmail           @relation(fields: [quoteEmailId], references: [id], onDelete: Cascade)
+  sentByUserId   String?
+  sentBy         User?                @relation(fields: [sentByUserId], references: [id])
+  recipientEmail String
+  status         QuoteEmailSendStatus
+  errorMessage   String?
+  sentAt         DateTime
+  createdAt      DateTime             @default(now())
 }
 
 model QuoteStatusEvent {
@@ -114,4 +210,154 @@ model QuoteStatusEvent {
   quote     Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   actorId   String?
   actor     User?       @relation(fields: [actorId], references: [id])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorId      String?
+  action       String
+  resourceType String
+  resourceId   String
+  before       Json?
+  after        Json?
+  createdAt    DateTime @default(now())
+
+  @@index([resourceType, resourceId])
+  @@index([actorId])
+}
+
+model ApiRequestLog {
+  id         String   @id @default(cuid())
+  method     String
+  path       String
+  statusCode Int
+  latencyMs  Int
+  actorId    String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model ProductCatalogue {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id              String           @id @default(cuid())
+  catalogueId     String
+  catalogue       ProductCatalogue @relation(fields: [catalogueId], references: [id])
+  productCode     String           @unique
+  productName     String
+  description     String?
+  brand           String?
+  unit            String?
+  basePrice       Float?
+  currency        String           @default("USD")
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  lineItems       QuoteLineItem[]
+  matches         RfqItemMatch[]
+}
+
+model RfqAttachment {
+  id           String    @id @default(cuid())
+  rfqIntakeId  String
+  rfqIntake    RfqIntake @relation(fields: [rfqIntakeId], references: [id], onDelete: Cascade)
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  parsedText   String?
+  parseStatus  String    @default("pending")
+  createdAt    DateTime  @default(now())
+}
+
+model RfqExtractedCustomer {
+  id                String   @id @default(cuid())
+  rfqId             String   @unique
+  rfq               Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  customerCompany   String?
+  customerContact   String?
+  customerEmail     String?
+  customerPhone     String?
+  deliveryLocation  String?
+  requestedDeadline String?
+  notes             String?
+  createdAt         DateTime @default(now())
+}
+
+model RfqItemMatch {
+  id                   String           @id @default(cuid())
+  rfqExtractedItemId   String
+  rfqExtractedItem     RfqExtractedItem @relation(fields: [rfqExtractedItemId], references: [id], onDelete: Cascade)
+  productId            String?
+  product              Product?         @relation(fields: [productId], references: [id])
+  score                Float
+  status               String           @default("pending")
+  overrideDescription  String?
+  overrideUnitPrice    Float?
+  createdAt            DateTime         @default(now())
+}
+
+model BackgroundJob {
+  id           String   @id @default(cuid())
+  type         String
+  status       String   @default("pending")
+  payload      String   @default("{}")
+  attempts     Int      @default(0)
+  maxAttempts  Int      @default(3)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model LlmSetting {
+  id        String   @id @default("default")
+  provider  String   @default("openai")
+  apiKey    String   @default("")
+  model     String   @default("gpt-4o-mini")
+  baseUrl   String?
+  updatedAt DateTime @updatedAt
+}
+
+model Connector {
+  id             String         @id @default(cuid())
+  type           String
+  label          String
+  credentialsJson String        @default("{}")
+  isEnabled      Boolean        @default(true)
+  lastSyncAt     DateTime?
+  lastError      String?
+  failureCount   Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  rfqIntakes     RfqIntake[]
+  ingestionRuns  IngestionRun[]
 }

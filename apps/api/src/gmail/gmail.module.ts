@@ -1,12 +1,13 @@
 import { Module } from "@nestjs/common";
 
-import { PrismaService } from "../prisma/prisma.service";
-import { RfqsService } from "../rfqs/rfqs.service";
+import { RfqsModule } from "../rfqs/rfqs.module";
 import { GmailController } from "./gmail.controller";
-import { GmailService } from "./gmail.service";
+import { GmailConnectorService } from "./gmail.service";
 
 @Module({
+  imports: [RfqsModule],
   controllers: [GmailController],
-  providers: [GmailService, RfqsService, PrismaService]
+  providers: [GmailConnectorService],
+  exports: [GmailConnectorService],
 })
 export class GmailModule {}

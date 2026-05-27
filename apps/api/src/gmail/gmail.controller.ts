@@ -1,26 +1,35 @@
 import { Body, Controller, Headers, Post, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
-import { GmailService } from "./gmail.service";
-import { GmailSyncSummary, RfqsService } from "../rfqs/rfqs.service";
+import { Public } from "../rbac/public.decorator";
+import { ConnectorRunService } from "../scheduler/connector-run.service";
+import { GmailConnectorService, GmailSyncSummary } from "./gmail.service";
 
 @Controller("connectors/gmail")
 export class GmailController {
   constructor(
-    private readonly gmailService: GmailService,
-    private readonly rfqsService: RfqsService
+    private readonly gmailConnectorService: GmailConnectorService,
+    private readonly connectorRunService: ConnectorRunService,
+    private readonly config: ConfigService
   ) {}
 
   @Post("sync")
+  @Public()
   async sync(
     @Headers("x-connector-secret") secret: string | undefined,
     @Body() body: { query?: string }
   ): Promise<GmailSyncSummary> {
     this.verifyConnectorSecret(secret);
-    return this.rfqsService.syncGmail(this.gmailService, body.query);
+    let result!: GmailSyncSummary;
+    await this.connectorRunService.runConnector("gmail", async () => {
+      result = await this.gmailConnectorService.sync(body.query);
+      return result;
+    }, { rethrow: true });
+    return result;
   }
 
   private verifyConnectorSecret(provided: string | undefined) {
-    const expected = process.env.GMAIL_CONNECTOR_SECRET?.trim();
+    const expected = this.config.get<string>("GMAIL_CONNECTOR_SECRET")?.trim();
 
     if (!expected) {
       throw new UnauthorizedException("Gmail connector secret is not configured.");

@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { startTransition, useEffect, useMemo, useState } from "react";
-
 import { formatState } from "../lib/format";
 
-import type { IntakeEmailInput, RfqListItemView, UserSummary } from "@auto8/shared";
+import type { IntakeEmailInput, RfqListItemView } from "@auto8/shared";
 
 import { WorkspaceShell } from "../components/workspace-shell";
-import { createRfqFromEmail, fetchRfqs, fetchUsers } from "../lib/api";
-import { useDemoUser } from "../lib/use-demo-user";
+import { createRfqFromEmail, fetchRfqs } from "../lib/api";
+import { getAuthUser } from "../lib/auth";
+import type { AuthUser } from "../lib/auth";
 
 const initialIntakeForm: IntakeEmailInput = {
   fromEmail: "buyer@autofleet.example",
@@ -24,22 +24,31 @@ function formatWorkflowState(value: string) {
 }
 
 export default function DashboardPage() {
-  const [users, setUsers] = useState<UserSummary[]>([]);
   const [rfqs, setRfqs] = useState<RfqListItemView[]>([]);
+  const [rejectedRfqs, setRejectedRfqs] = useState<RfqListItemView[]>([]);
+  const [activeTab, setActiveTab] = useState<"active" | "rejected">("active");
+  const [pipelineFilter, setPipelineFilter] = useState<string>("");
   const [intakeForm, setIntakeForm] = useState<IntakeEmailInput>(initialIntakeForm);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { selectedUser, selectedUserId, selectUser } = useDemoUser(users);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    void getAuthUser().then(setAuthUser);
+  }, []);
 
   useEffect(() => {
     async function load() {
       try {
-        const [nextUsers, nextRfqs] = await Promise.all([fetchUsers(), fetchRfqs()]);
-        setUsers(nextUsers);
-        setRfqs(nextRfqs);
+        const [activeRes, rejectedRes] = await Promise.all([
+          fetchRfqs(true, pipelineFilter || undefined),
+          fetchRfqs(false)
+        ]);
+        setRfqs(activeRes.data);
+        setRejectedRfqs(rejectedRes.data);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load dashboard.");
       } finally {
@@ -48,7 +57,7 @@ export default function DashboardPage() {
     }
 
     void load();
-  }, []);
+  }, [pipelineFilter]);
 
   const stats = useMemo(
     () => ({
@@ -60,8 +69,12 @@ export default function DashboardPage() {
   );
 
   async function refreshRfqs() {
-    const nextRfqs = await fetchRfqs();
-    setRfqs(nextRfqs);
+    const [activeRes, rejectedRes] = await Promise.all([
+      fetchRfqs(true, pipelineFilter || undefined),
+      fetchRfqs(false)
+    ]);
+    setRfqs(activeRes.data);
+    setRejectedRfqs(rejectedRes.data);
   }
 
   function updateField<K extends keyof IntakeEmailInput>(key: K, value: IntakeEmailInput[K]) {
@@ -105,10 +118,7 @@ export default function DashboardPage() {
     <WorkspaceShell
       title="RFQ Intake Dashboard"
       description="Capture inbound RFQs from email or Slack, route them into one queue, and hand them off for draft creation or sales approval."
-      selectedUser={selectedUser}
-      selectedUserId={selectedUserId}
-      users={users}
-      onUserChange={selectUser}
+      authUser={authUser}
     >
       <section className="stats">
         <div className="stat">
@@ -164,26 +174,82 @@ export default function DashboardPage() {
             <h2>RFQ work queue</h2>
             <p className="panel-subtitle">Open any RFQ to draft a quote, submit it for approval, or confirm an approved status.</p>
           </div>
-          <div className="list">
-            {rfqs.map((rfq) => (
-              <Link className="list-card" href={`/rfqs/${rfq.id}`} key={rfq.id}>
-                <div className="list-card-header">
-                  <div>
-                    <h3>{rfq.reference}</h3>
-                    <div className="meta">{rfq.subject}</div>
-                  </div>
-                  <div className="badge-row">
-                    <span className="badge dark">{rfq.sourceLabel}</span>
-                    <span className={`badge ${rfq.workflowState === "approved" ? "success" : ""}`}>{formatWorkflowState(rfq.workflowState)}</span>
-                  </div>
-                </div>
-                <div className="meta">{rfq.senderName ?? rfq.senderEmail ?? rfq.sourceLabel}</div>
-                {rfq.senderEmail ? <div className="mono">{rfq.senderEmail}</div> : <div className="hint">No sender email recorded.</div>}
-                <div className="hint">Received {new Date(rfq.receivedAt).toLocaleString()}</div>
-              </Link>
-            ))}
-            {!rfqs.length ? <div className="empty">No RFQs yet.</div> : null}
+          <div className="tab-row">
+            <button className={`tab ${activeTab === "active" ? "tab-active" : ""}`} onClick={() => setActiveTab("active")}>
+              Active ({rfqs.length})
+            </button>
+            <button className={`tab ${activeTab === "rejected" ? "tab-active" : ""}`} onClick={() => setActiveTab("rejected")}>
+              Rejected ({rejectedRfqs.length})
+            </button>
           </div>
+          {activeTab === "active" && (
+            <div className="badge-row" style={{ marginBottom: 8 }}>
+              <label className="meta" style={{ marginRight: 6 }}>Pipeline:</label>
+              <select
+                value={pipelineFilter}
+                onChange={(e) => setPipelineFilter(e.target.value)}
+                style={{ fontSize: 12, padding: "2px 6px", borderRadius: 4, border: "1px solid #ccc" }}
+              >
+                <option value="">All</option>
+                <option value="classified">Classified</option>
+                <option value="needs_review">Needs Review</option>
+                <option value="ready_for_quote">Ready for Quote</option>
+                <option value="quote_draft_created">Draft Created</option>
+                <option value="approved">Approved</option>
+                <option value="sent">Sent</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          )}
+          {activeTab === "active" ? (
+            <div className="list">
+              {rfqs.map((rfq) => (
+                <Link className="list-card" href={`/rfqs/${rfq.id}`} key={rfq.id}>
+                  <div className="list-card-header">
+                    <div>
+                      <h3>{rfq.reference}</h3>
+                      <div className="meta">{rfq.subject}</div>
+                    </div>
+                    <div className="badge-row">
+                      <span className="badge dark">{rfq.sourceLabel}</span>
+                      <span className={`badge ${rfq.workflowState === "approved" ? "success" : ""}`}>{formatWorkflowState(rfq.workflowState)}</span>
+                      {rfq.rfqPipelineStatus && rfq.rfqPipelineStatus !== "classified" && (
+                        <span className="badge">{rfq.rfqPipelineStatus.replace(/_/g, " ")}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="meta">{rfq.senderName ?? rfq.senderEmail ?? rfq.sourceLabel}</div>
+                  {rfq.senderEmail ? <div className="mono">{rfq.senderEmail}</div> : <div className="hint">No sender email recorded.</div>}
+                  <div className="hint">Received {new Date(rfq.receivedAt).toLocaleString()}</div>
+                </Link>
+              ))}
+              {!rfqs.length ? <div className="empty">No active RFQs.</div> : null}
+            </div>
+          ) : (
+            <div className="list">
+              {rejectedRfqs.map((rfq) => (
+                <Link className="list-card" href={`/rfqs/${rfq.id}`} key={rfq.id}>
+                  <div className="list-card-header">
+                    <div>
+                      <h3>{rfq.reference}</h3>
+                      <div className="meta">{rfq.subject}</div>
+                    </div>
+                    <div className="badge-row">
+                      <span className="badge dark">{rfq.sourceLabel}</span>
+                      <span className="badge">Rejected</span>
+                      {rfq.classificationScore !== null && (
+                        <span className="badge">{Math.round(rfq.classificationScore * 100)}% RFQ</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="meta">{rfq.senderName ?? rfq.senderEmail ?? rfq.sourceLabel}</div>
+                  {rfq.senderEmail ? <div className="mono">{rfq.senderEmail}</div> : <div className="hint">No sender email recorded.</div>}
+                  <div className="hint">Received {new Date(rfq.receivedAt).toLocaleString()}</div>
+                </Link>
+              ))}
+              {!rejectedRfqs.length ? <div className="empty">No rejected messages.</div> : null}
+            </div>
+          )}
         </section>
       </section>
     </WorkspaceShell>

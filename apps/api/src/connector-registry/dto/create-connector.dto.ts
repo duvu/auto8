@@ -1,10 +1,11 @@
-import { IsEnum, IsObject, IsString } from "class-validator";
+import { IsEnum, IsNotEmpty, IsObject, IsString } from "class-validator";
 
 export class CreateConnectorDto {
-  @IsEnum(["gmail", "slack"])
-  type!: "gmail" | "slack";
+  @IsEnum(["gmail", "slack", "outlook"])
+  type!: "gmail" | "slack" | "outlook";
 
   @IsString()
+  @IsNotEmpty()
   label!: string;
 
   @IsObject()

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogView, AuditLogQueryParams, PaginatedResponse } from '@auto8/shared';
 import { PaginationQueryDto } from '../common/dto/pagination.dto';
+import { buildPaginatedResponse } from '../common/utils/paginate';
 
 @Injectable()
 export class AuditService {
@@ -61,15 +62,7 @@ export class AuditService {
       this.prisma.auditLog.count({ where }),
     ]);
 
-    return {
-      data: entries.map(this.serialize),
-      meta: {
-        total,
-        page: pagination.page,
-        limit: pagination.limit,
-        hasMore: skip + entries.length < total,
-      },
-    };
+    return buildPaginatedResponse(entries.map(this.serialize), total, pagination);
   }
 
   async getResourceLogs(resourceType: string, resourceId: string): Promise<AuditLogView[]> {

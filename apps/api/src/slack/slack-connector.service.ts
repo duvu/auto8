@@ -1,24 +1,17 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorTestResult, SlackRfqIntakeInput } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, SlackRfqIntakeInput } from "@auto8/shared";
 
 import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
+import { optionalString } from "../common/utils/string.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 
 type RequestHeaders = Record<string, string | string[] | undefined>;
-
-export type SlackSyncSummary = {
-  imported: number;
-  skipped: number;
-  failed: number;
-  importedReferences: string[];
-  errors: string[];
-};
 
 @Injectable()
 export class SlackConnectorService implements ConnectorService {
@@ -32,6 +25,15 @@ export class SlackConnectorService implements ConnectorService {
 
   isConfigured(): boolean {
     return !!this.config.get<string>("SLACK_SIGNING_SECRET")?.trim();
+  }
+
+  /**
+   * Slack is push-only (webhook/events model). This method exists to satisfy
+   * the ConnectorService interface but does nothing when called directly.
+   */
+  async sync(_connector: Connector): Promise<ConnectorSyncSummary> {
+    this.logger.debug("Slack connector is push-only — sync() is a no-op.");
+    return { imported: 0, skipped: 0, failed: 0, importedReferences: [], errors: [] };
   }
 
   async intakeSlack(input: SlackRfqIntakeInput, rawPayload: string, headers: RequestHeaders, connector?: Connector) {
@@ -51,33 +53,12 @@ export class SlackConnectorService implements ConnectorService {
         },
       });
       if (existing) {
-        throw new ConflictException(`Slack message ${input.messageId} has already been processed.`);
+        this.logger.warn(`Slack message ${input.messageId} has already been processed — skipping.`);
+        return null;
       }
     }
 
-    const normalized: NormalizedRfqIntake = {
-      sourceType: "slack",
-      sourceLabel: connector
-        ? connector.label
-        : input.channelName?.trim()
-          ? `Slack / #${input.channelName.trim()}`
-          : "Slack",
-      senderEmail: this.normalizeOptionalEmail(input.submitterEmail),
-      senderName: this.optionalString(input.submitterName),
-      subject: input.subject.trim(),
-      body: input.body.trim(),
-      receivedAt: input.submittedAt,
-      rawPayload,
-      slackWorkspaceId: input.workspaceId.trim(),
-      slackWorkspaceName: this.optionalString(input.workspaceName),
-      slackChannelId: input.channelId.trim(),
-      slackChannelName: this.optionalString(input.channelName),
-      slackSubmitterId: input.submitterId.trim(),
-      slackSubmitterName: this.optionalString(input.submitterName),
-      slackSubmitterEmail: this.normalizeOptionalEmail(input.submitterEmail),
-      slackMessageId: input.messageId?.trim() || null,
-      connectorId: connector?.id,
-    };
+    const normalized = this.buildNormalizedSlackIntake(input, rawPayload, connector);
 
     const detail = await this.rfqIntakeService.classifyAndIntake(normalized);
 
@@ -88,6 +69,32 @@ export class SlackConnectorService implements ConnectorService {
     await this.sendConfirmationWithToken(input.channelId.trim(), detail.reference, input.subject.trim(), botToken);
 
     return detail;
+  }
+
+  private buildNormalizedSlackIntake(input: SlackRfqIntakeInput, rawPayload: string, connector?: Connector): NormalizedRfqIntake {
+    return {
+      sourceType: "slack",
+      sourceLabel: connector
+        ? connector.label
+        : input.channelName?.trim()
+          ? `Slack / #${input.channelName.trim()}`
+          : "Slack",
+      senderEmail: this.normalizeOptionalEmail(input.submitterEmail),
+      senderName: optionalString(input.submitterName),
+      subject: input.subject.trim(),
+      body: input.body.trim(),
+      receivedAt: input.submittedAt,
+      rawPayload,
+      slackWorkspaceId: input.workspaceId.trim(),
+      slackWorkspaceName: optionalString(input.workspaceName),
+      slackChannelId: input.channelId.trim(),
+      slackChannelName: optionalString(input.channelName),
+      slackSubmitterId: input.submitterId.trim(),
+      slackSubmitterName: optionalString(input.submitterName),
+      slackSubmitterEmail: this.normalizeOptionalEmail(input.submitterEmail),
+      slackMessageId: input.messageId?.trim() || null,
+      connectorId: connector?.id,
+    };
   }
 
   async testConnector(connector: Connector): Promise<ConnectorTestResult> {
@@ -110,7 +117,7 @@ export class SlackConnectorService implements ConnectorService {
     }
   }
 
-  verifySlackRequestForConnector(headers: RequestHeaders, rawPayload: string, connector: Connector): void {
+  private verifySlackRequestForConnector(headers: RequestHeaders, rawPayload: string, connector: Connector): void {
     const creds = JSON.parse(connector.credentialsJson) as Record<string, string>;
     const signingSecret = creds["signingSecret"];
     if (!signingSecret) {
@@ -185,38 +192,12 @@ export class SlackConnectorService implements ConnectorService {
       }
     }
 
-    const normalized: NormalizedRfqIntake = {
-      sourceType: "slack",
-      sourceLabel: input.channelName?.trim() ? `Slack / #${input.channelName.trim()}` : "Slack (Events API)",
-      senderEmail: this.normalizeOptionalEmail(input.submitterEmail),
-      senderName: this.optionalString(input.submitterName),
-      subject: input.subject.trim(),
-      body: input.body.trim(),
-      receivedAt: input.submittedAt,
-      rawPayload,
-      slackWorkspaceId: input.workspaceId.trim(),
-      slackWorkspaceName: this.optionalString(input.workspaceName),
-      slackChannelId: input.channelId.trim(),
-      slackChannelName: this.optionalString(input.channelName),
-      slackSubmitterId: input.submitterId.trim(),
-      slackSubmitterName: this.optionalString(input.submitterName),
-      slackSubmitterEmail: this.normalizeOptionalEmail(input.submitterEmail),
-      slackMessageId: input.messageId?.trim() || null
-    };
+    const normalized = this.buildNormalizedSlackIntake(input, rawPayload, undefined);
 
-      const detail = await this.rfqIntakeService.classifyAndIntake(normalized);
-      await this.sendConfirmationWithToken(input.channelId.trim(), detail.reference, input.subject.trim(), this.config.get<string>("SLACK_BOT_TOKEN")?.trim());
+    const detail = await this.rfqIntakeService.classifyAndIntake(normalized);
+    await this.sendConfirmationWithToken(input.channelId.trim(), detail.reference, input.subject.trim(), this.config.get<string>("SLACK_BOT_TOKEN")?.trim());
 
     return detail;
-  }
-
-  /**
-   * Send a confirmation message to a Slack channel.
-   * Requires SLACK_BOT_TOKEN to be configured.
-   */
-  private async sendConfirmation(channelId: string, rfqReference: string, subject: string): Promise<void> {
-    const botToken = this.config.get<string>("SLACK_BOT_TOKEN")?.trim();
-    await this.sendConfirmationWithToken(channelId, rfqReference, subject, botToken);
   }
 
   private async sendConfirmationWithToken(channelId: string, rfqReference: string, subject: string, botToken?: string): Promise<void> {
@@ -333,10 +314,6 @@ export class SlackConnectorService implements ConnectorService {
   }
 
   private normalizeOptionalEmail(value: string | null | undefined) {
-    return this.optionalString(value)?.toLowerCase() ?? null;
-  }
-
-  private optionalString(value: string | null | undefined) {
-    return value?.trim() || null;
+    return optionalString(value)?.toLowerCase() ?? null;
   }
 }

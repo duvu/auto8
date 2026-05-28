@@ -7,11 +7,11 @@ import type { CreateConnectorInput } from "@auto8/shared";
 
 import { createConnector } from "../../../lib/api";
 
-const CONNECTOR_TYPES = ["gmail", "slack"] as const;
+const CONNECTOR_TYPES = ["gmail", "slack", "outlook"] as const;
 
 export default function NewConnectorPage() {
   const router = useRouter();
-  const [type, setType] = useState<"gmail" | "slack">("gmail");
+  const [type, setType] = useState<"gmail" | "slack" | "outlook">("gmail");
   const [label, setLabel] = useState("");
   const [credentials, setCredentials] = useState("{}");
   const [loading, setLoading] = useState(false);
@@ -62,6 +62,18 @@ export default function NewConnectorPage() {
       null,
       2,
     ),
+    outlook: JSON.stringify(
+      {
+        clientId: "YOUR_AZURE_APP_CLIENT_ID",
+        clientSecret: "YOUR_AZURE_APP_CLIENT_SECRET",
+        refreshToken: "YOUR_REFRESH_TOKEN",
+        tenantId: "common",
+        maxResults: 50,
+        markAsRead: true,
+      },
+      null,
+      2,
+    ),
   };
 
   return (
@@ -69,7 +81,7 @@ export default function NewConnectorPage() {
       <section className="hero">
         <div className="eyebrow">auto8 / Admin</div>
         <h1>Add Connector</h1>
-        <p className="panel-subtitle">Configure a new Gmail or Slack connector for RFQ ingestion.</p>
+        <p className="panel-subtitle">Configure a new Gmail, Slack, or Outlook connector for RFQ ingestion.</p>
       </section>
 
       <section className="panel" style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -81,7 +93,7 @@ export default function NewConnectorPage() {
             <select
               value={type}
               onChange={(e) => {
-                const t = e.target.value as "gmail" | "slack";
+                const t = e.target.value as "gmail" | "slack" | "outlook";
                 setType(t);
                 setCredentials(credentialHints[t] ?? "{}");
               }}

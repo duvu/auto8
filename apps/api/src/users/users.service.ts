@@ -10,6 +10,7 @@ import type { UserView } from "@auto8/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
+import { buildPaginatedResponse } from "../common/utils/paginate";
 
 interface CreateUserDto {
   email: string;
@@ -59,15 +60,7 @@ export class UsersService {
       }),
       this.prisma.user.count(),
     ]);
-    return {
-      data: users.map(serializeUser),
-      meta: {
-        total,
-        page: pagination.page,
-        limit: pagination.limit,
-        hasMore: skip + users.length < total,
-      },
-    };
+    return buildPaginatedResponse(users.map(serializeUser), total, pagination);
   }
 
   async create(dto: CreateUserDto): Promise<UserView> {

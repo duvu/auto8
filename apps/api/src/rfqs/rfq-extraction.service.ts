@@ -156,15 +156,25 @@ Return ONLY valid JSON like: {"items": [...], "customer": {...}}`;
       this.logger.log(`Extracted ${items.length} items for RFQ ${rfqId}`);
 
       // Advance pipeline status to ready_for_quote if currently classified
-      const currentRfq = await this.prisma.rfq.findUnique({
-        where: { id: rfqId },
-        select: { intake: { select: { rfqPipelineStatus: true, id: true } } },
-      });
-      if (currentRfq?.intake?.rfqPipelineStatus === "classified" && items.length > 0) {
-        await this.prisma.rfqIntake.update({
-          where: { id: currentRfq.intake.id },
-          data: { rfqPipelineStatus: "ready_for_quote" },
+      if (items.length > 0) {
+        const currentRfq = await this.prisma.rfq.findUnique({
+          where: { id: rfqId },
+          select: { intakeId: true },
         });
+        if (currentRfq?.intakeId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const intake = await (this.prisma.rfqIntake as any).findUnique({
+            where: { id: currentRfq.intakeId },
+            select: { rfqPipelineStatus: true },
+          });
+          if (intake?.rfqPipelineStatus === "classified") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (this.prisma.rfqIntake as any).update({
+              where: { id: currentRfq.intakeId },
+              data: { rfqPipelineStatus: "ready_for_quote" },
+            });
+          }
+        }
       }
 
       // Enqueue item matching job if items were extracted

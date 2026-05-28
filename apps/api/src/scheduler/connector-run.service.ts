@@ -1,6 +1,6 @@
 import { HttpException, Injectable, Logger } from "@nestjs/common";
 
-import type { ConnectorSyncSummary } from "../connectors/connector.interface";
+import type { ConnectorSyncSummary } from "@auto8/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()

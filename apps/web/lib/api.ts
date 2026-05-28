@@ -1,11 +1,10 @@
-import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, ConnectorTestResult, ConnectorView, CreateConnectorInput, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, PaginatedResponse, ProductView, QuoteEmailDraftView, QuoteEmailSendView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, RfqMatchGroupView, SaveQuoteInput, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UserView, CatalogueUploadResult } from "@auto8/shared";
+import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, CatalogueUploadResult, ConnectorSyncSummary, ConnectorTestResult, ConnectorView, CreateConnectorInput, CreateProductInput, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, PaginatedResponse, ProductView, QuoteEmailDraftView, QuoteEmailSendView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, RfqMatchGroupView, SaveQuoteInput, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UploadPreviewResult, UserView } from "@auto8/shared";
 
 import { logout } from "./auth";
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+import { API_BASE_URL } from "./config";
 
 function buildUrl(path: string) {
-  return `${apiBaseUrl}/api${path}`;
+  return `${API_BASE_URL}/api${path}`;
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -212,6 +211,37 @@ export function deleteProduct(id: string) {
   return request<void>(`/catalogue/${id}`, { method: "DELETE" });
 }
 
+export function createProduct(input: CreateProductInput) {
+  return request<ProductView>("/catalogue", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateProduct(id: string, input: CreateProductInput) {
+  return request<ProductView>(`/catalogue/${id}`, { method: "PUT", body: JSON.stringify(input) });
+}
+
+export function reactivateProduct(id: string) {
+  return request<ProductView>(`/catalogue/${id}/reactivate`, { method: "POST" });
+}
+
+export async function exportCatalogue(): Promise<Blob> {
+  const res = await fetch(`${API_BASE_URL}/api/catalogue/export`, { credentials: "include" });
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  return res.blob();
+}
+
+export function previewCatalogueUpload(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request<UploadPreviewResult>("/catalogue/upload/preview", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function getProduct(id: string) {
+  return request<ProductView>(`/catalogue/${id}`);
+}
+
 // Jobs
 export function getJobs(params: { status?: string; type?: string; page?: number } = {}) {
   const qs = new URLSearchParams();
@@ -266,4 +296,16 @@ export function deleteConnector(id: string) {
 
 export function testConnector(id: string) {
   return request<ConnectorTestResult>(`/connectors/${id}/test`, { method: "POST" });
+}
+
+export function getConnector(id: string) {
+  return request<ConnectorView>(`/connectors/${id}`);
+}
+
+export function getConnectorRuns(id: string, page = 1, limit = 10) {
+  return request<PaginatedResponse<IngestionRunView>>(`/connectors/${id}/runs?page=${page}&limit=${limit}`);
+}
+
+export function syncConnectorNow(id: string) {
+  return request<ConnectorSyncSummary>(`/connectors/${id}/sync`, { method: "POST" });
 }

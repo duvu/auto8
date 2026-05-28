@@ -12,8 +12,7 @@ import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
 import { MatchReviewPanel } from "../../../components/MatchReviewPanel";
 import { QuoteEmailTab } from "../../../components/QuoteEmailTab";
 import { approveQuote, fetchRfqDetail, generateQuote, getExtractedCustomer, getExtractedItems, saveDraftQuote, submitQuote } from "../../../lib/api";
-import { getAuthUser } from "../../../lib/auth";
-import type { AuthUser } from "../../../lib/auth";
+import { useAuthUser } from "../../../lib/use-auth-user";
 import { formatState } from "../../../lib/format";
 
 function buildDraft(detail: RfqDetailView | null, extractedCustomer?: RfqExtractedCustomerView | null): SaveQuoteInput {
@@ -52,11 +51,7 @@ export default function RfqDetailPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"quote" | "email">("quote");
 
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    void getAuthUser().then(setAuthUser);
-  }, []);
+  const authUser = useAuthUser();
 
   useEffect(() => {
     async function load() {
@@ -436,7 +431,7 @@ export default function RfqDetailPage() {
             className="button"
             disabled={working || quoteLocked}
             type="button"
-            onClick={() => void runAction(() => saveDraftQuote(rfqId, { ...draft, grandTotal: quoteTotals.grandTotal }), "Draft quote saved.")}
+            onClick={() => void runAction(() => saveDraftQuote(rfqId, { ...draft }), "Draft quote saved.")}
           >
             {working ? "Working..." : detail.quote ? "Update draft" : "Create draft"}
           </button>

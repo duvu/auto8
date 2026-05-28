@@ -7,6 +7,7 @@ import { getProducts, deleteProduct } from "../../lib/api";
 export default function CataloguePage() {
   const [products, setProducts] = useState<ProductView[]>([]);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,6 +20,7 @@ export default function CataloguePage() {
       const res: PaginatedResponse<ProductView> = await getProducts(q || undefined, page, 20);
       setProducts(res.data);
       setTotal(res.meta.total);
+      setHasMore(res.meta.hasMore);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load products");
     } finally {
@@ -130,7 +132,7 @@ export default function CataloguePage() {
               </button>
             )}
             <span>Page {page}</span>
-            {products.length === 20 && (
+            {hasMore && (
               <button onClick={() => setPage(page + 1)} className="text-blue-600 hover:underline">
                 Next
               </button>

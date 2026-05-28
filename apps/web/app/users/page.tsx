@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import type { UserView } from "@auto8/shared";
 
-import { deleteUser, getUsers, updateUser } from "../../lib/api";
+import { deactivateUser, getUsers, updateUser } from "../../lib/api";
 import { getAuthUser } from "../../lib/auth";
 import type { AuthUser } from "../../lib/auth";
 
@@ -44,7 +44,7 @@ export default function UsersPage() {
     setError(null);
     setSuccess(null);
     try {
-      await deleteUser(id);
+      await deactivateUser(id);
       setSuccess(`${name} deactivated.`);
       await loadUsers();
     } catch (err) {

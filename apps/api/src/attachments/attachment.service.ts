@@ -44,9 +44,17 @@ export class AttachmentService {
         parsedText = await this.parseXlsx(attachment.storagePath);
       } else if (ext === ".csv" || mime === "text/csv") {
         parsedText = await this.parseCsv(attachment.storagePath);
+      } else if (ext === ".txt" || mime === "text/plain") {
+        parsedText = await this.parseTxt(attachment.storagePath);
       } else {
-        parsedText = "";
+        // Unsupported type — mark as failed with empty text
         this.logger.warn(`Unsupported attachment type: ${ext} (${mime})`);
+        await this.prisma.rfqAttachment.update({
+          where: { id: rfqAttachmentId },
+          data: { parsedText: "", parseStatus: "failed" },
+        });
+        await this.aggregateAttachmentContent(attachment.rfqIntakeId);
+        return;
       }
 
       await this.prisma.rfqAttachment.update({
@@ -85,33 +93,50 @@ export class AttachmentService {
   }
 
   private async parseXlsx(filePath: string): Promise<string> {
+    const XLSX_ROW_CAP = 500;
     const workbook = XLSX.readFile(filePath);
     const lines: string[] = [];
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
       lines.push(`[Sheet: ${sheetName}]`);
-      for (const row of rows) {
+      const cappedRows = rows.slice(0, XLSX_ROW_CAP);
+      for (const row of cappedRows) {
         lines.push(Object.values(row).join("\t"));
+      }
+      if (rows.length > XLSX_ROW_CAP) {
+        lines.push(`[... truncated at ${XLSX_ROW_CAP} rows]`);
       }
     }
     return lines.join("\n");
+  }
+
+  private async parseTxt(filePath: string): Promise<string> {
+    return fs.readFileSync(filePath, "utf-8");
   }
 
   private async parseCsv(filePath: string): Promise<string> {
     return fs.readFileSync(filePath, "utf-8");
   }
 
-  private async aggregateAttachmentContent(rfqIntakeId: string): Promise<void> {
+  async aggregateAttachmentContent(rfqIntakeId: string): Promise<boolean> {
     const attachments = await this.prisma.rfqAttachment.findMany({
       where: { rfqIntakeId },
     });
 
-    const allDone = attachments.every((a) => a.parseStatus === "done");
-    if (!allDone) return;
+    // Only aggregate when all attachments are settled (done or failed), not just done
+    const allSettled = attachments.every(
+      (a) => a.parseStatus === "done" || a.parseStatus === "failed",
+    );
+    if (!allSettled) return false;
 
     const combined = attachments
-      .map((a) => `[File: ${a.filename}]\n${a.parsedText ?? ""}`)
+      .map((a) => {
+        if (a.parseStatus === "failed") {
+          return `[File: ${a.filename} — parse failed]`;
+        }
+        return `[File: ${a.filename}]\n${a.parsedText ?? ""}`;
+      })
       .join("\n\n");
 
     await this.prisma.rfqIntake.update({
@@ -122,5 +147,6 @@ export class AttachmentService {
     this.logger.log(
       `Aggregated ${attachments.length} attachment(s) for RfqIntake ${rfqIntakeId}`,
     );
+    return true;
   }
 }

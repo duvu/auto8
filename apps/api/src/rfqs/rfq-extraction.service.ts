@@ -47,6 +47,18 @@ export class RfqExtractionService {
         return;
       }
 
+      // Guard: if any attachments are still pending parsing, defer extraction
+      // The rfq_extract job will be re-enqueued after aggregateAttachmentContent settles
+      const pendingAttachmentCount = await this.prisma.rfqAttachment.count({
+        where: { rfqIntakeId: rfq.intakeId, parseStatus: "pending" },
+      });
+      if (pendingAttachmentCount > 0) {
+        this.logger.debug(
+          `Deferring extraction for RFQ ${rfqId} — ${pendingAttachmentCount} attachment(s) still pending`,
+        );
+        return;
+      }
+
       // Build prompt — append attachment content if available
       let bodyContent = rfq.intake.body;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

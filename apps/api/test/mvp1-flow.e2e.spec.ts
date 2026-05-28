@@ -223,7 +223,7 @@ describe("MVP1 RFQ-to-approved-quote flow", () => {
 
     expect(quoteRes.status).toBe(200);
     expect(quoteRes.body.quote.status).toBe("draft");
-    expect(quoteRes.body.quote.grandTotal).toBe(1200);
+    expect(quoteRes.body.quote.grandTotal).toBe(1600); // server-computed: 20×40 + 50×16 = 1600
 
     // Check pipeline status updated
     const detail = await request(app.getHttpServer())

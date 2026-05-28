@@ -25,7 +25,9 @@ function buildDraft(detail: RfqDetailView | null): SaveQuoteInput {
       detail?.quote?.lineItems.map((item) => ({
         description: item.description,
         quantity: item.quantity,
-        unitPrice: item.unitPrice
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        productId: item.productId ?? undefined
       })) ?? [
         {
           description: "",
@@ -75,7 +77,7 @@ export default function RfqDetailPage() {
   const quoteLocked = detail?.quote?.status === "pending_approval" || detail?.quote?.status === "approved";
   const canApprove = detail?.quote?.status === "pending_approval" && authUser?.role === "sales_approver";
   const quoteTotals = useMemo(
-    () => calcQuoteTotals(draft.lineItems, draft.discount ?? 0, draft.tax ? draft.tax / 100 : 0),
+    () => calcQuoteTotals(draft.lineItems, draft.discount ?? 0, draft.tax ?? 0),
     [draft.lineItems, draft.discount, draft.tax]
   );
   const quoteTotal = quoteTotals.grandTotal;
@@ -387,7 +389,7 @@ export default function RfqDetailPage() {
                 <input
                   disabled={quoteLocked}
                   min={0}
-                  step={1}
+                  step={0.01}
                   type="number"
                   value={item.unitPrice}
                   onChange={(event) => updateLineItem(index, "unitPrice", event.target.value)}

@@ -114,6 +114,7 @@ model Quote {
   discount        Float              @default(0)
   tax             Float              @default(0)
   grandTotal      Float?
+  currency        String             @default("USD")
   paymentTerms    String?
   deliveryTerms   String?
   validityDays    Int?
@@ -137,10 +138,10 @@ model QuoteLineItem {
   id          String   @id @default(cuid())
   description String
   quantity    Int
-  unitPrice   Int
+  unitPrice   Float
   sortOrder   Int
   discount    Float    @default(0)
-  subtotal    Float?
+  subtotal    Float    @default(0)
   productId   String?
   createdAt   DateTime @default(now())
   quoteId     String

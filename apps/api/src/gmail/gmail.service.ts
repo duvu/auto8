@@ -111,7 +111,7 @@ export class GmailConnectorService implements ConnectorService {
           attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
         };
 
-        const detail = await this.rfqIntakeService.createRfqFromIntake(intake);
+        const detail = await this.rfqIntakeService.classifyAndIntake(intake);
         summary.imported++;
         summary.importedReferences.push(detail.reference);
 
@@ -173,7 +173,7 @@ export class GmailConnectorService implements ConnectorService {
           attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
         };
 
-        const detail = await this.rfqIntakeService.createRfqFromIntake(intake);
+        const detail = await this.rfqIntakeService.classifyAndIntake(intake);
         summary.imported++;
         summary.importedReferences.push(detail.reference);
 

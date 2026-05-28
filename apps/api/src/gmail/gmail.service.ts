@@ -7,7 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import type { Connector } from "@prisma/client";
 
 import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
-import type { ConnectorTestResult } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 
@@ -26,14 +26,6 @@ export type GmailMessage = {
   body: string;
   receivedAt: string;
   attachments: GmailAttachment[];
-};
-
-export type GmailSyncSummary = {
-  imported: number;
-  skipped: number;
-  failed: number;
-  importedReferences: string[];
-  errors: string[];
 };
 
 const MAX_RETRIES = 3;
@@ -58,86 +50,44 @@ export class GmailConnectorService implements ConnectorService {
     );
   }
 
-  async sync(query?: string, connector?: Connector): Promise<GmailSyncSummary> {
-    const summary: GmailSyncSummary = { imported: 0, skipped: 0, failed: 0, importedReferences: [], errors: [] };
+  async sync(connector: Connector): Promise<ConnectorSyncSummary> {
+    const summary: ConnectorSyncSummary = { imported: 0, skipped: 0, failed: 0, importedReferences: [], errors: [] };
+    return this.syncWithConnector(undefined, connector, summary);
+  }
 
-    if (connector) {
-      // Multi-connector path: use connector's credentials
-      return this.syncWithConnector(query, connector, summary);
-    }
+  async syncLegacy(query?: string): Promise<ConnectorSyncSummary> {
+    const summary: ConnectorSyncSummary = { imported: 0, skipped: 0, failed: 0, importedReferences: [], errors: [] };
 
     if (!this.isConfigured()) {
       throw new Error("Gmail connector is not configured.");
     }
 
-    const messages = await this.fetchMessages(query);
     const gmail = this.getGmailClient();
-
-    for (const msg of messages) {
-      try {
-        const existing = await this.prisma.rfqIntake.findFirst({
-          where: { gmailMessageId: msg.messageId, connectorId: null },
-        });
-        if (existing) {
-          summary.skipped++;
-          continue;
-        }
-
-        const { fromEmail, fromName } = parseFromHeader(msg.from ?? "");
-        const subject = msg.subject?.trim() || "(no subject)";
-        const body = msg.body?.trim() || "(empty)";
-
-        if (!fromEmail) {
-          const errorMsg = `Message ${msg.messageId}: no valid sender email`;
-          this.logger.warn(errorMsg);
-          summary.errors.push(errorMsg);
-          summary.failed++;
-          continue;
-        }
-
-        const savedAttachments = await this.downloadAttachments(gmail, msg);
-
-        const intake: NormalizedRfqIntake = {
-          sourceType: "email",
-          sourceLabel: "Gmail",
-          senderEmail: fromEmail,
-          senderName: fromName,
-          subject,
-          body,
-          receivedAt: msg.receivedAt,
-          rawPayload: JSON.stringify(msg),
-          gmailMessageId: msg.messageId,
-          gmailThreadId: msg.threadId,
-          attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
-        };
-
-        const detail = await this.rfqIntakeService.classifyAndIntake(intake);
-        summary.imported++;
-        summary.importedReferences.push(detail.reference);
-
-        await this.markAsRead(gmail, msg.messageId);
-      } catch (error) {
-        const errorMsg = `Message ${msg.messageId}: ${(error as Error).message}`;
-        this.logger.error(errorMsg);
-        summary.errors.push(errorMsg);
-        summary.failed++;
-      }
-    }
-
+    const messages = await this.fetchMessages(query);
+    await this.syncMessages(gmail, messages, summary, undefined);
     return summary;
   }
 
-  private async syncWithConnector(query: string | undefined, connector: Connector, summary: GmailSyncSummary): Promise<GmailSyncSummary> {
+  private async syncWithConnector(query: string | undefined, connector: Connector, summary: ConnectorSyncSummary): Promise<ConnectorSyncSummary> {
     const gmail = this.getClientForConnector(connector);
     const creds = JSON.parse(connector.credentialsJson) as Record<string, string>;
     const searchQuery = query ?? creds["searchQuery"] ?? "is:unread";
     const maxResults = parseInt(creds["maxResults"] ?? "20", 10);
     const messages = await this.fetchMessagesWithClient(gmail, searchQuery, maxResults);
+    await this.syncMessages(gmail, messages, summary, connector);
+    return summary;
+  }
 
+  private async syncMessages(
+    gmail: ReturnType<typeof this.getGmailClient>,
+    messages: GmailMessage[],
+    summary: ConnectorSyncSummary,
+    connector: Connector | undefined,
+  ): Promise<void> {
     for (const msg of messages) {
       try {
         const existing = await this.prisma.rfqIntake.findFirst({
-          where: { gmailMessageId: msg.messageId, connectorId: connector.id },
+          where: { gmailMessageId: msg.messageId, connectorId: connector?.id ?? null },
         });
         if (existing) {
           summary.skipped++;
@@ -160,7 +110,7 @@ export class GmailConnectorService implements ConnectorService {
 
         const intake: NormalizedRfqIntake = {
           sourceType: "email",
-          sourceLabel: connector.label,
+          sourceLabel: connector?.label ?? "Gmail",
           senderEmail: fromEmail,
           senderName: fromName,
           subject,
@@ -169,13 +119,13 @@ export class GmailConnectorService implements ConnectorService {
           rawPayload: JSON.stringify(msg),
           gmailMessageId: msg.messageId,
           gmailThreadId: msg.threadId,
-          connectorId: connector.id,
+          ...(connector ? { connectorId: connector.id } : {}),
           attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
         };
 
         const detail = await this.rfqIntakeService.classifyAndIntake(intake);
         summary.imported++;
-        summary.importedReferences.push(detail.reference);
+        summary.importedReferences.push(detail.reference ?? detail.id);
 
         await this.markAsRead(gmail, msg.messageId);
       } catch (error) {
@@ -185,8 +135,6 @@ export class GmailConnectorService implements ConnectorService {
         summary.failed++;
       }
     }
-
-    return summary;
   }
 
   async testConnector(connector: Connector): Promise<ConnectorTestResult> {
@@ -261,7 +209,7 @@ export class GmailConnectorService implements ConnectorService {
     return google.gmail({ version: "v1", auth });
   }
 
-  async fetchMessages(query?: string): Promise<GmailMessage[]> {
+  private async fetchMessages(query?: string): Promise<GmailMessage[]> {
     const gmail = this.getGmailClient();
     const searchQuery = query ?? this.config.get<string>("GMAIL_SEARCH_QUERY") ?? "is:unread";
     const maxResults = parseInt(this.config.get<string>("GMAIL_MAX_RESULTS") ?? "20", 10);

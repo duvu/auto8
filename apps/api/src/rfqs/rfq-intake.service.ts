@@ -13,27 +13,19 @@ import type {
   PaginatedResponse,
   RfqDetailView,
   RfqListItemView,
+  RfqPipelineStatus,
 } from "@auto8/shared";
+import { VALID_PIPELINE_STATUSES } from "@auto8/shared";
 
 import type { NormalizedRfqIntake } from "../connectors/connector.interface";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
+import { buildPaginatedResponse } from "../common/utils/paginate";
 import { RfqExtractionService } from "./rfq-extraction.service";
 import { RfqClassificationService } from "./rfq-classification.service";
 import { JobsService } from "../jobs/jobs.service";
-
-const VALID_PIPELINE_STATUSES = [
-  "new",
-  "classified",
-  "needs_review",
-  "ready_for_quote",
-  "quote_draft_created",
-  "quote_submitted",
-  "approved",
-  "sent",
-  "closed",
-] as const;
+import { optionalString } from "../common/utils/string.util";
 
 const rfqDetailInclude = {
   intake: true,
@@ -80,7 +72,7 @@ export class RfqIntakeService {
       sourceType: "email",
       sourceLabel: "Email",
       senderEmail: input.fromEmail.trim().toLowerCase(),
-      senderName: this.optionalString(input.fromName),
+      senderName: optionalString(input.fromName),
       subject: input.subject.trim(),
       body: input.body.trim(),
       receivedAt: input.receivedAt,
@@ -138,15 +130,7 @@ export class RfqIntakeService {
       this.prisma.rfq.count({ where }),
     ]);
 
-    return {
-      data: rfqs.map((rfq) => this.serializeRfqListItem(rfq)),
-      meta: {
-        total,
-        page: pagination.page,
-        limit: pagination.limit,
-        hasMore: skip + rfqs.length < total,
-      },
-    };
+    return buildPaginatedResponse(rfqs.map((rfq) => this.serializeRfqListItem(rfq)), total, pagination);
   }
 
   async getRfqDetail(rfqId: string): Promise<RfqDetailView> {
@@ -191,6 +175,7 @@ export class RfqIntakeService {
               slackSubmitterEmail: input.slackSubmitterEmail,
               slackMessageId: input.slackMessageId,
               gmailMessageId: input.gmailMessageId,
+              outlookMessageId: input.outlookMessageId ?? null,
               gmailThreadId: input.gmailThreadId,
               isRfq: input.isRfq ?? true,
               classificationScore: input.classificationScore ?? null,
@@ -267,8 +252,8 @@ export class RfqIntakeService {
     throw new ConflictException("Failed to generate unique RFQ reference after multiple attempts.");
   }
 
-  async updatePipelineStatus(rfqId: string, status: string): Promise<void> {
-    if (!VALID_PIPELINE_STATUSES.includes(status as (typeof VALID_PIPELINE_STATUSES)[number])) {
+  async updatePipelineStatus(rfqId: string, status: RfqPipelineStatus): Promise<void> {
+    if (!VALID_PIPELINE_STATUSES.includes(status)) {
       throw new BadRequestException(
         `Invalid pipeline status: '${status}'. Valid values are: ${VALID_PIPELINE_STATUSES.join(", ")}`,
       );
@@ -317,7 +302,7 @@ export class RfqIntakeService {
     reference: string;
     workflowState: "new" | "draft" | "pending_approval" | "approved";
     intake: {
-      sourceType: "email" | "slack";
+      sourceType: "email" | "slack" | "outlook";
       sourceLabel: string;
       senderEmail: string | null;
       senderName: string | null;
@@ -408,9 +393,5 @@ export class RfqIntakeService {
         };
       })(),
     };
-  }
-
-  private optionalString(value: string | null | undefined) {
-    return value?.trim() || null;
   }
 }

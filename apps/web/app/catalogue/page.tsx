@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { ProductView, PaginatedResponse } from "@auto8/shared";
-import { getProducts, deleteProduct } from "../../lib/api";
+import {
+  getProducts,
+  deleteProduct,
+  reactivateProduct,
+  exportCatalogue,
+} from "../../lib/api";
 
 export default function CataloguePage() {
   const [products, setProducts] = useState<ProductView[]>([]);
@@ -12,6 +17,7 @@ export default function CataloguePage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,7 +38,7 @@ export default function CataloguePage() {
     void load();
   }, [load]);
 
-  const handleDelete = async (id: string) => {
+  const handleDeactivate = async (id: string) => {
     if (!confirm("Deactivate this product?")) return;
     try {
       await deleteProduct(id);
@@ -42,16 +48,59 @@ export default function CataloguePage() {
     }
   };
 
+  const handleReactivate = async (id: string) => {
+    try {
+      await reactivateProduct(id);
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reactivate product");
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportCatalogue();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "catalogue.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Product Catalogue</h1>
-        <a
-          href="/catalogue/upload"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
-        >
-          Upload Catalogue
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void handleExport()}
+            disabled={exporting}
+            className="border border-gray-400 text-gray-700 px-4 py-2 rounded hover:bg-gray-100 text-sm disabled:opacity-50"
+          >
+            {exporting ? "Exporting..." : "Export CSV"}
+          </button>
+          <a
+            href="/catalogue/new"
+            className="border border-blue-600 text-blue-600 px-4 py-2 rounded hover:bg-blue-50 text-sm"
+          >
+            New Product
+          </a>
+          <a
+            href="/catalogue/upload"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+          >
+            Upload Catalogue
+          </a>
+        </div>
       </div>
 
       <div className="mb-4">
@@ -89,7 +138,7 @@ export default function CataloguePage() {
                 {products.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="border px-3 py-4 text-center text-gray-500">
-                      No products found. Upload a catalogue to get started.
+                      No products found. Upload a catalogue or create a product to get started.
                     </td>
                   </tr>
                 ) : (
@@ -107,13 +156,26 @@ export default function CataloguePage() {
                           {p.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
-                      <td className="border px-3 py-2">
-                        {p.isActive && (
+                      <td className="border px-3 py-2 space-x-2">
+                        <a
+                          href={`/catalogue/${p.id}`}
+                          className="text-blue-600 hover:underline text-xs"
+                        >
+                          Edit
+                        </a>
+                        {p.isActive ? (
                           <button
-                            onClick={() => void handleDelete(p.id)}
+                            onClick={() => void handleDeactivate(p.id)}
                             className="text-red-600 hover:underline text-xs"
                           >
                             Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => void handleReactivate(p.id)}
+                            className="text-green-600 hover:underline text-xs"
+                          >
+                            Reactivate
                           </button>
                         )}
                       </td>

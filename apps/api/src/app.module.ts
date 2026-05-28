@@ -20,6 +20,7 @@ import { RbacGuard } from "./rbac/rbac.guard";
 import { RbacModule } from "./rbac/rbac.module";
 import { RfqsModule } from "./rfqs/rfqs.module";
 import { SlackModule } from "./slack/slack.module";
+import { OutlookModule } from "./outlook/outlook.module";
 import { SchedulerModule } from "./scheduler/scheduler.module";
 import { UsersModule } from "./users/users.module";
 import { SettingsModule } from "./settings/settings.module";
@@ -45,6 +46,7 @@ import { SettingsModule } from "./settings/settings.module";
     AuditModule,
     AuthModule,
     CatalogueModule,
+    SchedulerModule,
     ConnectorRegistryModule,
     JobsModule,
     RfqsModule,
@@ -52,7 +54,7 @@ import { SettingsModule } from "./settings/settings.module";
     QuoteEmailModule,
     GmailModule,
     SlackModule,
-    SchedulerModule,
+    OutlookModule,
     RbacModule,
     UsersModule,
     SettingsModule,

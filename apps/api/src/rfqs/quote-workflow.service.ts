@@ -4,12 +4,13 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  Optional,
 } from "@nestjs/common";
 import { QuoteStatus, type Prisma } from "@prisma/client";
 
 import type { GenerateQuoteResult, QuoteLineItemInput, RfqDetailView, SaveQuoteInput } from "@auto8/shared";
+import { calcQuoteTotals } from "@auto8/shared";
 
+import { optionalString } from "../common/utils/string.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "./rfq-intake.service";
 import { QuoteEmailService } from "../quote-email/quote-email.service";
@@ -27,7 +28,7 @@ export class QuoteWorkflowService {
     private readonly quoteEmailService: QuoteEmailService,
     private readonly auditService: AuditService,
     private readonly aiQuoteGenerationService: AiQuoteGenerationService,
-    @Optional() private readonly jobsService?: JobsService,
+    private readonly jobsService: JobsService,
   ) {}
 
   async saveDraft(rfqId: string, input: SaveQuoteInput, actorId: string): Promise<RfqDetailView> {
@@ -49,14 +50,14 @@ export class QuoteWorkflowService {
     if (!rfq.quote) {
       await this.prisma.$transaction(async (tx) => {
         const lineItemsData = input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
-        const computedGrandTotal = this.computeGrandTotal(lineItemsData, input.discount ?? 0, input.tax ?? 0);
+        const computedGrandTotal = calcQuoteTotals(lineItemsData, input.discount ?? 0, input.tax ?? 0).grandTotal;
 
         const quote = await tx.quote.create({
           data: {
             rfqId,
             customerName: input.customerName.trim(),
             customerCompany: input.customerCompany.trim(),
-            notes: this.optionalString(input.notes),
+            notes: optionalString(input.notes),
             createdById: actorId,
             ...(input.discount !== undefined && { discount: input.discount }),
             ...(input.tax !== undefined && { tax: input.tax }),
@@ -83,14 +84,14 @@ export class QuoteWorkflowService {
 
       await this.prisma.$transaction(async (tx) => {
         const lineItemsData = input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
-        const computedGrandTotal = this.computeGrandTotal(lineItemsData, input.discount ?? 0, input.tax ?? 0);
+        const computedGrandTotal = calcQuoteTotals(lineItemsData, input.discount ?? 0, input.tax ?? 0).grandTotal;
 
         await tx.quote.update({
           where: { id: existingQuoteId },
           data: {
             customerName: input.customerName.trim(),
             customerCompany: input.customerCompany.trim(),
-            notes: this.optionalString(input.notes),
+            notes: optionalString(input.notes),
             ...(input.discount !== undefined && { discount: input.discount }),
             ...(input.tax !== undefined && { tax: input.tax }),
             grandTotal: computedGrandTotal,
@@ -212,12 +213,10 @@ export class QuoteWorkflowService {
       this.logger.error(`Failed to generate quote email draft for quoteId=${quoteId}: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    // Enqueue sheet export job if configured
-    if (this.jobsService) {
-      this.jobsService.enqueue("sheet_export", { quoteId }).catch((err: unknown) =>
-        this.logger.error("Failed to enqueue sheet_export job", err),
-      );
-    }
+    // Enqueue sheet export job
+    this.jobsService.enqueue("sheet_export", { quoteId }).catch((err: unknown) =>
+      this.logger.error("Failed to enqueue sheet_export job", err),
+    );
 
     // Advance pipeline status to 'approved'
     this.rfqIntakeService.updatePipelineStatus(quote.rfqId, "approved").catch((err: unknown) =>
@@ -342,21 +341,5 @@ export class QuoteWorkflowService {
     };
 
     return this.saveDraft(rfqId, input, actorId);
-  }
-
-  private computeGrandTotal(
-    lineItems: Array<{ subtotal: number }>,
-    orderDiscountPct: number,
-    taxPct: number,
-  ): number {
-    const subtotal = lineItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const discountAmount = Math.round(subtotal * (orderDiscountPct / 100) * 100) / 100;
-    const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
-    const taxAmount = Math.round(afterDiscount * (taxPct / 100) * 100) / 100;
-    return Math.round((afterDiscount + taxAmount) * 100) / 100;
-  }
-
-  private optionalString(value: string | null | undefined) {
-    return value?.trim() || null;
   }
 }

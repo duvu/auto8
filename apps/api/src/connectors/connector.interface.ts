@@ -1,5 +1,9 @@
+import type { Connector } from "@prisma/client";
+
+import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
+
 export type NormalizedRfqIntake = {
-  sourceType: "email" | "slack";
+  sourceType: "email" | "slack" | "outlook";
   sourceLabel: string;
   senderEmail: string | null;
   senderName: string | null;
@@ -17,6 +21,7 @@ export type NormalizedRfqIntake = {
   slackMessageId?: string | null;
   gmailMessageId?: string | null;
   gmailThreadId?: string | null;
+  outlookMessageId?: string | null;
   isRfq?: boolean;
   classificationScore?: number | null;
   classificationReason?: string | null;
@@ -29,14 +34,8 @@ export type NormalizedRfqIntake = {
   connectorId?: string | null;
 };
 
-export type ConnectorSyncSummary = {
-  imported: number;
-  skipped: number;
-  failed: number;
-  importedReferences: string[];
-  errors: string[];
-};
-
 export interface ConnectorService {
   isConfigured(): boolean;
+  sync(connector: Connector): Promise<ConnectorSyncSummary>;
+  testConnector(connector: Connector): Promise<ConnectorTestResult>;
 }

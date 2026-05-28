@@ -7,8 +7,21 @@ export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 export const RFQ_WORKFLOW_STATES = ["new", "draft", "pending_approval", "approved"] as const;
 export type RfqWorkflowState = (typeof RFQ_WORKFLOW_STATES)[number];
 
-export const RFQ_SOURCE_TYPES = ["email", "slack"] as const;
+export const RFQ_SOURCE_TYPES = ["email", "slack", "outlook"] as const;
 export type RfqSourceType = (typeof RFQ_SOURCE_TYPES)[number];
+
+export const VALID_PIPELINE_STATUSES = [
+  "new",
+  "classified",
+  "needs_review",
+  "ready_for_quote",
+  "quote_draft_created",
+  "quote_submitted",
+  "approved",
+  "sent",
+  "closed",
+] as const;
+export type RfqPipelineStatus = (typeof VALID_PIPELINE_STATUSES)[number];
 
 export interface IntakeEmailInput {
   fromEmail: string;
@@ -47,7 +60,6 @@ export interface SaveQuoteInput {
   notes?: string;
   discount?: number;
   tax?: number;
-  grandTotal?: number;
   paymentTerms?: string;
   deliveryTerms?: string;
   validityDays?: number;
@@ -147,10 +159,6 @@ export interface QuoteEmailDraftView {
   sends: QuoteEmailSendView[];
   createdAt: string;
   updatedAt: string;
-}
-
-export interface SendQuoteEmailInput {
-  // no fields — triggers send of current draft
 }
 
 export interface UpdateQuoteEmailInput {
@@ -379,7 +387,7 @@ export interface LlmTestResult {
   response?: string;
   error?: string;
 }
-export const CONNECTOR_TYPES = ["gmail", "slack"] as const;
+export const CONNECTOR_TYPES = ["gmail", "slack", "outlook"] as const;
 export type ConnectorType = (typeof CONNECTOR_TYPES)[number];
 
 export interface ConnectorView {
@@ -409,6 +417,39 @@ export interface UpdateConnectorInput {
   label?: string;
   isEnabled?: boolean;
   credentials?: Record<string, string>;
+}
+
+export interface ConnectorSyncSummary {
+  imported: number;
+  skipped: number;
+  failed: number;
+  importedReferences: string[];
+  errors: string[];
+}
+
+export interface CreateProductInput {
+  productCode: string;
+  productName: string;
+  description?: string;
+  brand?: string;
+  unit?: string;
+  basePrice?: number;
+  currency?: string;
+}
+
+export interface UploadPreviewRow {
+  row: number;
+  productCode: string;
+  productName: string;
+  action: "create" | "update" | "skip";
+  reason?: string;
+}
+
+export interface UploadPreviewResult {
+  rows: UploadPreviewRow[];
+  createCount: number;
+  updateCount: number;
+  skipCount: number;
 }
 
 export * from "./quote-calc";

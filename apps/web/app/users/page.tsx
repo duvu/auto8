@@ -6,8 +6,7 @@ import { useEffect, useState } from "react";
 import type { UserView } from "@auto8/shared";
 
 import { deactivateUser, getUsers, updateUser } from "../../lib/api";
-import { getAuthUser } from "../../lib/auth";
-import type { AuthUser } from "../../lib/auth";
+import { useAuthUser } from "../../lib/use-auth-user";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserView[]>([]);
@@ -16,11 +15,7 @@ export default function UsersPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
 
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    void getAuthUser().then(setAuthUser);
-  }, []);
+  const authUser = useAuthUser();
 
   useEffect(() => {
     void loadUsers();

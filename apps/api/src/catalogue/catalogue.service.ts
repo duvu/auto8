@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,7 +8,15 @@ import {
 import * as XLSX from "xlsx";
 import { PrismaService } from "../prisma/prisma.service";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
-import type { CatalogueUploadResult, PaginatedResponse, ProductView } from "@auto8/shared";
+import type {
+  CatalogueUploadResult,
+  PaginatedResponse,
+  ProductView,
+  UploadPreviewResult,
+  UploadPreviewRow,
+} from "@auto8/shared";
+import { buildPaginatedResponse } from "../common/utils/paginate";
+import { CreateProductDto } from "./dto/create-product.dto";
 
 function serializeProduct(p: {
   id: string;
@@ -43,7 +52,6 @@ export class CatalogueService {
   constructor(private readonly prisma: PrismaService) {}
 
   async upload(file: Express.Multer.File): Promise<CatalogueUploadResult> {
-    // Ensure a default catalogue exists to associate products with
     const defaultCatalogue = await this.prisma.productCatalogue.upsert({
       where: { id: "default" },
       create: { id: "default", name: "Default Catalogue" },
@@ -101,7 +109,12 @@ export class CatalogueService {
             description: row["description"] ? String(row["description"]) : null,
             brand: row["brand"] ? String(row["brand"]) : null,
             unit: row["unit"] ? String(row["unit"]) : null,
-            basePrice: row["basePrice"] !== undefined ? (isNaN(Number(row["basePrice"])) ? null : Number(row["basePrice"])) : null,
+            basePrice:
+              row["basePrice"] !== undefined
+                ? isNaN(Number(row["basePrice"]))
+                  ? null
+                  : Number(row["basePrice"])
+                : null,
             currency: row["currency"] ? String(row["currency"]) : "USD",
           },
           update: {
@@ -125,13 +138,79 @@ export class CatalogueService {
     return { imported, skipped, errors };
   }
 
+  async dryRunUpload(file: Express.Multer.File): Promise<UploadPreviewResult> {
+    const mimeType = file.mimetype;
+    const ext = file.originalname.split(".").pop()?.toLowerCase();
+
+    let rows: Record<string, unknown>[] = [];
+
+    if (ext === "csv" || mimeType === "text/csv") {
+      const workbook = XLSX.read(file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+    } else if (
+      ext === "xlsx" ||
+      mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ) {
+      const workbook = XLSX.read(file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+    } else {
+      throw new BadRequestException("File must be .xlsx or .csv");
+    }
+
+    const previewRows: UploadPreviewRow[] = [];
+    let createCount = 0;
+    let updateCount = 0;
+    let skipCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const productCode = String(row["productCode"] ?? row["product_code"] ?? "").trim();
+      const productName = String(row["productName"] ?? row["product_name"] ?? "").trim();
+
+      if (!productCode) {
+        skipCount++;
+        previewRows.push({
+          row: i + 2,
+          productCode: "",
+          productName,
+          action: "skip",
+          reason: "missing productCode",
+        });
+        continue;
+      }
+      if (!productName) {
+        skipCount++;
+        previewRows.push({
+          row: i + 2,
+          productCode,
+          productName: "",
+          action: "skip",
+          reason: "missing productName",
+        });
+        continue;
+      }
+
+      const existing = await this.prisma.product.findUnique({ where: { productCode } });
+      if (existing) {
+        updateCount++;
+        previewRows.push({ row: i + 2, productCode, productName, action: "update" });
+      } else {
+        createCount++;
+        previewRows.push({ row: i + 2, productCode, productName, action: "create" });
+      }
+    }
+
+    return { rows: previewRows, createCount, updateCount, skipCount };
+  }
+
   async findAll(
     q?: string,
     pagination?: PaginationQueryDto,
   ): Promise<PaginatedResponse<ProductView>> {
-    const page = pagination?.page ?? 1;
-    const limit = pagination?.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const pag = pagination ?? new PaginationQueryDto();
+    const skip = (pag.page - 1) * pag.limit;
 
     const where = q
       ? {
@@ -145,14 +224,16 @@ export class CatalogueService {
       : { isActive: true };
 
     const [products, total] = await Promise.all([
-      this.prisma.product.findMany({ where, skip, take: limit, orderBy: { productName: "asc" } }),
+      this.prisma.product.findMany({
+        where,
+        skip,
+        take: pag.limit,
+        orderBy: { productName: "asc" },
+      }),
       this.prisma.product.count({ where }),
     ]);
 
-    return {
-      data: products.map(serializeProduct),
-      meta: { total, page, limit, hasMore: skip + products.length < total },
-    };
+    return buildPaginatedResponse(products.map(serializeProduct), total, pag);
   }
 
   async findOne(id: string): Promise<ProductView> {
@@ -161,15 +242,99 @@ export class CatalogueService {
     return serializeProduct(product);
   }
 
-  async update(id: string, data: Partial<{
-    productName: string;
-    description: string;
-    brand: string;
-    unit: string;
-    basePrice: number;
-    currency: string;
-    isActive: boolean;
-  }>): Promise<ProductView> {
+  async create(dto: CreateProductDto): Promise<ProductView> {
+    const defaultCatalogue = await this.prisma.productCatalogue.upsert({
+      where: { id: "default" },
+      create: { id: "default", name: "Default Catalogue" },
+      update: {},
+    });
+
+    const existing = await this.prisma.product.findUnique({
+      where: { productCode: dto.productCode },
+    });
+    if (existing) {
+      throw new ConflictException(`Product code '${dto.productCode}' already exists`);
+    }
+
+    const product = await this.prisma.product.create({
+      data: {
+        catalogueId: defaultCatalogue.id,
+        productCode: dto.productCode,
+        productName: dto.productName,
+        description: dto.description ?? null,
+        brand: dto.brand ?? null,
+        unit: dto.unit ?? null,
+        basePrice: dto.basePrice ?? null,
+        currency: dto.currency ?? "USD",
+      },
+    });
+    return serializeProduct(product);
+  }
+
+  async fullUpdate(id: string, dto: CreateProductDto): Promise<ProductView> {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException(`Product ${id} not found`);
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: {
+        productCode: dto.productCode,
+        productName: dto.productName,
+        description: dto.description ?? null,
+        brand: dto.brand ?? null,
+        unit: dto.unit ?? null,
+        basePrice: dto.basePrice ?? null,
+        currency: dto.currency ?? "USD",
+      },
+    });
+    return serializeProduct(updated);
+  }
+
+  async reactivate(id: string): Promise<ProductView> {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException(`Product ${id} not found`);
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { isActive: true },
+    });
+    return serializeProduct(updated);
+  }
+
+  async exportCsv(): Promise<string> {
+    const products = await this.prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { productCode: "asc" },
+    });
+
+    const header = "productCode,productName,description,brand,unit,basePrice,currency";
+    const escape = (val: string | null | undefined): string => {
+      if (val == null) return "";
+      const s = String(val);
+      return s.includes(",") || s.includes('"') || s.includes("\n")
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const lines = products.map((p) =>
+      [p.productCode, p.productName, p.description, p.brand, p.unit, p.basePrice, p.currency]
+        .map((v) => escape(v != null ? String(v) : null))
+        .join(",")
+    );
+    return [header, ...lines].join("\n");
+  }
+
+  async update(
+    id: string,
+    data: Partial<{
+      productName: string;
+      description: string;
+      brand: string;
+      unit: string;
+      basePrice: number;
+      currency: string;
+      isActive: boolean;
+    }>
+  ): Promise<ProductView> {
     const existing = await this.prisma.product.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException(`Product ${id} not found`);
     const updated = await this.prisma.product.update({ where: { id }, data });

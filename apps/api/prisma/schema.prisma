@@ -29,6 +29,7 @@ enum RfqWorkflowState {
 enum RfqSourceType {
   email
   slack
+  outlook
 }
 
 model User {
@@ -67,6 +68,7 @@ model RfqIntake {
   slackMessageId     String?       @unique
   gmailMessageId     String?       @unique
   gmailThreadId      String?
+  outlookMessageId   String?
   isRfq              Boolean       @default(true)
   classificationScore Float?
   classificationReason String?

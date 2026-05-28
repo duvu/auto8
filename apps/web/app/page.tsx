@@ -5,11 +5,11 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 import { formatState } from "../lib/format";
 
 import type { IntakeEmailInput, RfqListItemView } from "@auto8/shared";
+import { VALID_PIPELINE_STATUSES } from "@auto8/shared";
 
 import { WorkspaceShell } from "../components/workspace-shell";
 import { createRfqFromEmail, fetchRfqs } from "../lib/api";
-import { getAuthUser } from "../lib/auth";
-import type { AuthUser } from "../lib/auth";
+import { useAuthUser } from "../lib/use-auth-user";
 
 const initialIntakeForm: IntakeEmailInput = {
   fromEmail: "buyer@autofleet.example",
@@ -18,10 +18,6 @@ const initialIntakeForm: IntakeEmailInput = {
   body: "Please quote 60 cabin filters for next week's service intake.",
   receivedAt: new Date().toISOString()
 };
-
-function formatWorkflowState(value: string) {
-  return formatState(value);
-}
 
 export default function DashboardPage() {
   const [rfqs, setRfqs] = useState<RfqListItemView[]>([]);
@@ -34,11 +30,7 @@ export default function DashboardPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    void getAuthUser().then(setAuthUser);
-  }, []);
+  const authUser = useAuthUser();
 
   useEffect(() => {
     async function load() {
@@ -191,14 +183,9 @@ export default function DashboardPage() {
                 style={{ fontSize: 12, padding: "2px 6px", borderRadius: 4, border: "1px solid #ccc" }}
               >
                 <option value="">All</option>
-                <option value="classified">Classified</option>
-                <option value="needs_review">Needs Review</option>
-                <option value="ready_for_quote">Ready for Quote</option>
-                <option value="quote_draft_created">Draft Created</option>
-                <option value="quote_submitted">Quote Submitted</option>
-                <option value="approved">Approved</option>
-                <option value="sent">Sent</option>
-                <option value="closed">Closed</option>
+                {VALID_PIPELINE_STATUSES.filter((s) => s !== "new").map((s) => (
+                  <option key={s} value={s}>{formatState(s)}</option>
+                ))}
               </select>
             </div>
           )}
@@ -213,7 +200,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="badge-row">
                       <span className="badge dark">{rfq.sourceLabel}</span>
-                      <span className={`badge ${rfq.workflowState === "approved" ? "success" : ""}`}>{formatWorkflowState(rfq.workflowState)}</span>
+                      <span className={`badge ${rfq.workflowState === "approved" ? "success" : ""}`}>{formatState(rfq.workflowState)}</span>
                       {rfq.rfqPipelineStatus && rfq.rfqPipelineStatus !== "classified" && (
                         <span className="badge">{rfq.rfqPipelineStatus.replace(/_/g, " ")}</span>
                       )}

@@ -1,9 +1,10 @@
 import { Body, Controller, Headers, Post, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
+import type { ConnectorSyncSummary } from "@auto8/shared";
 import { Public } from "../rbac/public.decorator";
 import { ConnectorRunService } from "../scheduler/connector-run.service";
-import { GmailConnectorService, GmailSyncSummary } from "./gmail.service";
+import { GmailConnectorService } from "./gmail.service";
 
 @Controller("connectors/gmail")
 export class GmailController {
@@ -18,11 +19,11 @@ export class GmailController {
   async sync(
     @Headers("x-connector-secret") secret: string | undefined,
     @Body() body: { query?: string }
-  ): Promise<GmailSyncSummary> {
+  ): Promise<ConnectorSyncSummary> {
     this.verifyConnectorSecret(secret);
-    let result!: GmailSyncSummary;
+    let result!: ConnectorSyncSummary;
     await this.connectorRunService.runConnector("gmail", async () => {
-      result = await this.gmailConnectorService.sync(body.query);
+      result = await this.gmailConnectorService.syncLegacy(body.query);
       return result;
     }, { rethrow: true });
     return result;

@@ -5,6 +5,7 @@ import type { IngestionRun } from "@prisma/client";
 import type { ConnectorView, IngestionDayCount, IngestionMetricsSummary, IngestionRunStats, IngestionRunView, PaginatedResponse } from "@auto8/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
+import { buildPaginatedResponse } from "../common/utils/paginate";
 
 @Injectable()
 export class ConnectorRunsService {
@@ -13,6 +14,7 @@ export class ConnectorRunsService {
   async listRuns(
     params: {
       connectorName?: string;
+      connectorId?: string;
       from?: string;
       to?: string;
     } = {},
@@ -21,7 +23,7 @@ export class ConnectorRunsService {
     const fromDate = params.from ? new Date(params.from) : undefined;
     const toDate = params.to ? new Date(params.to) : undefined;
     const where = {
-      ...(params.connectorName ? { connectorName: params.connectorName } : {}),
+      ...(params.connectorId ? { connectorId: params.connectorId } : params.connectorName ? { connectorName: params.connectorName } : {}),
       ...(fromDate && !isNaN(fromDate.getTime()) || toDate && !isNaN((toDate as Date).getTime())
         ? {
             createdAt: {
@@ -43,15 +45,7 @@ export class ConnectorRunsService {
       this.prisma.ingestionRun.count({ where }),
     ]);
 
-    return {
-      data: runs.map((r) => this.serialize(r)),
-      meta: {
-        total,
-        page: pagination.page,
-        limit: pagination.limit,
-        hasMore: skip + runs.length < total,
-      },
-    };
+    return buildPaginatedResponse(runs.map((r) => this.serialize(r)), total, pagination);
   }
 
   async getSummary(): Promise<IngestionMetricsSummary> {

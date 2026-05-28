@@ -1,6 +1,7 @@
 import { Body, ConflictException, Controller, Get, NotFoundException, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import type { User } from "@prisma/client";
+import type { RfqPipelineStatus } from "@auto8/shared";
 
 import { CurrentUser } from "../rbac/current-user.decorator";
 import { Public } from "../rbac/public.decorator";
@@ -71,7 +72,7 @@ export class RfqsController {
   @Roles(UserRole.quote_operator)
   async updatePipelineStatus(
     @Param("rfqId") rfqId: string,
-    @Body() body: { status: string },
+    @Body() body: { status: RfqPipelineStatus },
   ) {
     await this.rfqIntakeService.updatePipelineStatus(rfqId, body.status);
     return { ok: true };

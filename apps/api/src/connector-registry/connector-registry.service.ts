@@ -1,8 +1,8 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, OnModuleInit, UnprocessableEntityException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorTestResult, ConnectorView } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorView } from "@auto8/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateConnectorDto } from "./dto/create-connector.dto";
@@ -14,8 +14,9 @@ export class ConnectorRegistryService implements OnModuleInit {
   private readonly logger = new Logger(ConnectorRegistryService.name);
 
   // Injected optionally by the module to avoid circular deps at bootstrap
-  gmailService?: { testConnector(c: Connector): Promise<ConnectorTestResult> };
+  gmailService?: { testConnector(c: Connector): Promise<ConnectorTestResult>; sync(c: Connector): Promise<ConnectorSyncSummary> };
   slackService?: { testConnector(c: Connector): Promise<ConnectorTestResult> };
+  outlookService?: { testConnector(c: Connector): Promise<ConnectorTestResult>; sync(c: Connector): Promise<ConnectorSyncSummary> };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -25,6 +26,7 @@ export class ConnectorRegistryService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     await this.bootstrapGmail();
     await this.bootstrapSlack();
+    await this.bootstrapOutlook();
     await this.bootstrapReEncrypt();
   }
 
@@ -119,6 +121,30 @@ export class ConnectorRegistryService implements OnModuleInit {
     this.logger.log("Bootstrapped Slack connector from env vars");
   }
 
+  private async bootstrapOutlook(): Promise<void> {
+    const clientId = this.config.get<string>("OUTLOOK_CLIENT_ID")?.trim();
+    const clientSecret = this.config.get<string>("OUTLOOK_CLIENT_SECRET")?.trim();
+    const refreshToken = this.config.get<string>("OUTLOOK_REFRESH_TOKEN")?.trim();
+    if (!clientId || !clientSecret || !refreshToken) return;
+
+    const existing = await this.prisma.connector.findFirst({ where: { type: "outlook" } });
+    if (existing) return;
+
+    const tenantId = this.config.get<string>("OUTLOOK_TENANT_ID", "common");
+    const credentialsJson = this.encryptCredentials(
+      JSON.stringify({ clientId, clientSecret, refreshToken, tenantId, maxResults: 50, markAsRead: true }),
+    );
+
+    await this.prisma.connector.create({
+      data: {
+        type: "outlook",
+        label: "Default Outlook",
+        credentialsJson,
+      },
+    });
+    this.logger.log("Bootstrapped Outlook connector from env vars");
+  }
+
   async findAll(): Promise<ConnectorView[]> {
     const connectors = await this.prisma.connector.findMany({
       orderBy: { createdAt: "asc" },
@@ -209,6 +235,39 @@ export class ConnectorRegistryService implements OnModuleInit {
     }
   }
 
+  async findOneView(id: string): Promise<ConnectorView> {
+    const connector = await this.prisma.connector.findUnique({ where: { id } });
+    if (!connector) throw new NotFoundException(`Connector ${id} not found`);
+    return this.serialize(connector);
+  }
+
+  async syncNow(id: string): Promise<ConnectorSyncSummary> {
+    const connector = await this.findOne(id);
+    if (!connector.isEnabled) {
+      throw new UnprocessableEntityException("Connector is disabled.");
+    }
+    if (connector.type === "slack") {
+      throw new UnprocessableEntityException("Slack is push-only and cannot be manually synced.");
+    }
+    let syncError: string | undefined;
+    let result: ConnectorSyncSummary = { imported: 0, skipped: 0, failed: 0, importedReferences: [], errors: [] };
+    try {
+      if (connector.type === "gmail" && this.gmailService) {
+        result = await this.gmailService.sync(connector);
+      } else if (connector.type === "outlook" && this.outlookService) {
+        result = await this.outlookService.sync(connector);
+      } else {
+        throw new Error(`No sync handler for connector type: ${connector.type}`);
+      }
+    } catch (e) {
+      syncError = e instanceof Error ? e.message : String(e);
+      result.failed += 1;
+      result.errors.push(syncError);
+    }
+    await this.updateHealth(id, syncError);
+    return result;
+  }
+
   async testConnector(id: string): Promise<ConnectorTestResult> {
     const connector = await this.findOne(id);
     try {
@@ -217,6 +276,9 @@ export class ConnectorRegistryService implements OnModuleInit {
       }
       if (connector.type === "slack" && this.slackService) {
         return await this.slackService.testConnector(connector);
+      }
+      if (connector.type === "outlook" && this.outlookService) {
+        return await this.outlookService.testConnector(connector);
       }
       return { ok: false, error: `No test handler for type: ${connector.type}` };
     } catch (e) {
@@ -227,7 +289,7 @@ export class ConnectorRegistryService implements OnModuleInit {
   private serialize(c: Connector): ConnectorView {
     return {
       id: c.id,
-      type: c.type as "gmail" | "slack",
+      type: c.type as "gmail" | "slack" | "outlook",
       label: c.label,
       isEnabled: c.isEnabled,
       lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null,

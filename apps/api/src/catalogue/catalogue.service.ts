@@ -101,7 +101,7 @@ export class CatalogueService {
             description: row["description"] ? String(row["description"]) : null,
             brand: row["brand"] ? String(row["brand"]) : null,
             unit: row["unit"] ? String(row["unit"]) : null,
-            basePrice: row["basePrice"] !== undefined ? Number(row["basePrice"]) : null,
+            basePrice: row["basePrice"] !== undefined ? (isNaN(Number(row["basePrice"])) ? null : Number(row["basePrice"])) : null,
             currency: row["currency"] ? String(row["currency"]) : "USD",
           },
           update: {
@@ -137,9 +137,9 @@ export class CatalogueService {
       ? {
           isActive: true,
           OR: [
-            { productCode: { contains: q } },
-            { productName: { contains: q } },
-            { description: { contains: q } },
+            { productCode: { contains: q, mode: "insensitive" as const } },
+            { productName: { contains: q, mode: "insensitive" as const } },
+            { description: { contains: q, mode: "insensitive" as const } },
           ],
         }
       : { isActive: true };

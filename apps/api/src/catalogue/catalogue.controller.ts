@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Delete,
   Get,
@@ -17,6 +18,7 @@ import type { UserRole } from "@auto8/shared";
 import { Roles } from "../rbac/roles.decorator";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
 import { CatalogueService } from "./catalogue.service";
+import { UpdateProductDto } from "./dto/update-product.dto";
 
 @Controller("catalogue")
 export class CatalogueController {
@@ -26,6 +28,7 @@ export class CatalogueController {
   @Post("upload")
   @UseInterceptors(FileInterceptor("file"))
   async upload(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException("A file is required.");
     return this.catalogueService.upload(file);
   }
 
@@ -44,8 +47,8 @@ export class CatalogueController {
 
   @Roles("admin" as UserRole)
   @Patch(":id")
-  async update(@Param("id") id: string, @Body() data: Record<string, unknown>) {
-    return this.catalogueService.update(id, data as Parameters<CatalogueService["update"]>[1]);
+  async update(@Param("id") id: string, @Body() data: UpdateProductDto) {
+    return this.catalogueService.update(id, data);
   }
 
   @Roles("admin" as UserRole)

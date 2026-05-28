@@ -285,6 +285,15 @@ export class QuoteWorkflowService {
   }
 
   async createQuoteFromMatches(rfqId: string, actorId: string): Promise<RfqDetailView> {
+    // Guard: prevent silently overwriting an existing manually-edited draft
+    const existingRfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      include: { quote: { select: { status: true } } },
+    });
+    if (existingRfq?.quote?.status === "draft") {
+      throw new ConflictException("A draft quote already exists. Submit or delete it before creating from matches.");
+    }
+
     // Load accepted/overridden matches for this RFQ
     const extractedItems = await this.prisma.rfqExtractedItem.findMany({
       where: { rfqId },
@@ -323,9 +332,12 @@ export class QuoteWorkflowService {
     });
     if (!rfq) throw new NotFoundException("RFQ not found.");
 
+    // Use extracted customer data if available, fall back to sender email
+    const extractedCustomer = await this.prisma.rfqExtractedCustomer.findUnique({ where: { rfqId } });
+
     const input: SaveQuoteInput = {
-      customerName: rfq.intake.senderName ?? "Customer",
-      customerCompany: rfq.intake.senderEmail ?? "Unknown",
+      customerName: extractedCustomer?.customerContact ?? rfq.intake.senderName ?? "Customer",
+      customerCompany: extractedCustomer?.customerCompany ?? rfq.intake.senderEmail ?? "Unknown",
       lineItems: acceptedMatches,
     };
 

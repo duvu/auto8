@@ -71,6 +71,8 @@ export class AttachmentService {
         where: { id: rfqAttachmentId },
         data: { parseStatus: "failed" },
       });
+      // Still run aggregation so remaining settled attachments unblock rfq_extract
+      await this.aggregateAttachmentContent(attachment.rfqIntakeId);
       throw err;
     }
   }

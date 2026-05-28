@@ -38,7 +38,7 @@ export default function CataloguePage() {
       await deleteProduct(id);
       void load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to deactivate product");
+      setError(err instanceof Error ? err.message : "Failed to deactivate product");
     }
   };
 

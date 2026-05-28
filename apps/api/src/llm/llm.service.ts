@@ -138,8 +138,8 @@ export class LlmService implements OnModuleInit {
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
     const client = new Anthropic({ apiKey: config.apiKey });
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    const response = await (client.messages.create as Function)({
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    const response = await (client.messages.create)({
       model: config.model,
       max_tokens: 4096,
       system: systemPrompt,

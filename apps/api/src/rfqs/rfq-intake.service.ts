@@ -250,8 +250,11 @@ export class RfqIntakeService {
           }
         }
 
-        // Enqueue extraction as a background job (deferred until all attachments settle)
-        this.jobsService.enqueue("rfq_extract", { rfqId: rfq.id }).catch((err: unknown) => this.logger.error("Failed to enqueue rfq_extract job", err));
+        // Enqueue extraction as a background job only if there are no attachments
+        // (if attachments exist, rfq_extract will be enqueued after all attachment_parse jobs settle)
+        if (!input.attachments || input.attachments.length === 0) {
+          this.jobsService.enqueue("rfq_extract", { rfqId: rfq.id }).catch((err: unknown) => this.logger.error("Failed to enqueue rfq_extract job", err));
+        }
         return detail;
       } catch (err) {
         if (err instanceof PrismaClientKnownRequestError && err.code === "P2002" && attempt < MAX_RETRIES - 1) {
@@ -280,6 +283,23 @@ export class RfqIntakeService {
       where: { id: rfq.intakeId },
       data: { rfqPipelineStatus: status },
     });
+
+    // When manually reclassifying a needs_review RFQ back to classified,
+    // enqueue rfq_extract if no pending/running job exists
+    if (status === "classified") {
+      const existingJob = await this.prisma.backgroundJob.findFirst({
+        where: {
+          type: "rfq_extract",
+          status: { in: ["pending", "running"] },
+          payload: { contains: rfqId },
+        },
+      });
+      if (!existingJob) {
+        this.jobsService.enqueue("rfq_extract", { rfqId }).catch(
+          (err: unknown) => this.logger.error("Failed to enqueue rfq_extract after reclassification", err),
+        );
+      }
+    }
   }
 
   private validateEmailIntake(input: IntakeEmailInput) {

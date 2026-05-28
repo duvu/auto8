@@ -62,8 +62,8 @@ export default function DashboardPage() {
   const stats = useMemo(
     () => ({
       total: rfqs.length,
-      pendingApproval: rfqs.filter((rfq) => rfq.workflowState === "pending_approval").length,
-      approved: rfqs.filter((rfq) => rfq.workflowState === "approved").length
+      pendingApproval: rfqs.filter((rfq) => rfq.rfqPipelineStatus === "quote_submitted").length,
+      approved: rfqs.filter((rfq) => rfq.rfqPipelineStatus === "approved").length
     }),
     [rfqs]
   );
@@ -195,6 +195,7 @@ export default function DashboardPage() {
                 <option value="needs_review">Needs Review</option>
                 <option value="ready_for_quote">Ready for Quote</option>
                 <option value="quote_draft_created">Draft Created</option>
+                <option value="quote_submitted">Quote Submitted</option>
                 <option value="approved">Approved</option>
                 <option value="sent">Sent</option>
                 <option value="closed">Closed</option>

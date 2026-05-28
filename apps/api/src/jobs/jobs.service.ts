@@ -88,6 +88,17 @@ export class JobsService implements OnModuleInit {
   @Cron(CronExpression.EVERY_5_SECONDS)
   async processPendingJobs(): Promise<void> {
     const now = new Date();
+
+    // Recover stale "running" jobs (process crashed mid-job more than 5 minutes ago)
+    const staleThreshold = new Date(now.getTime() - 5 * 60 * 1000);
+    await this.prisma.backgroundJob.updateMany({
+      where: {
+        status: "running",
+        updatedAt: { lt: staleThreshold },
+      },
+      data: { status: "pending" },
+    });
+
     const jobs = await this.prisma.backgroundJob.findMany({
       where: {
         status: "pending",

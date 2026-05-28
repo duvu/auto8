@@ -459,7 +459,7 @@ Procurement Manager, Northport Shipping`,
   await prisma.backgroundJob.create({
     data: {
       type: "sheet_export",
-      status: "completed",
+      status: "done",
       payload: JSON.stringify({ quoteId: quote5.id }),
       attempts: 1,
       maxAttempts: 3,

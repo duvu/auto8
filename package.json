@@ -12,6 +12,7 @@
     "typecheck": "npm run typecheck --workspace @auto8/shared && npm run typecheck --workspace @auto8/api && npm run typecheck --workspace @auto8/web",
     "db:generate": "npm run prisma:generate --workspace @auto8/api",
     "db:migrate": "npm run prisma:migrate --workspace @auto8/api",
+    "db:push": "npx --workspace @auto8/api prisma db push",
     "db:seed": "npm run prisma:seed --workspace @auto8/api"
   },
   "devDependencies": {

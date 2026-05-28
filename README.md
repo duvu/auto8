@@ -1,41 +1,42 @@
 [![CI](https://github.com/duvu/auto8/actions/workflows/ci.yml/badge.svg)](https://github.com/duvu/auto8/actions/workflows/ci.yml)
-![NestJS](https://img.shields.io/badge/NestJS-10-E0234E?logo=nestjs)
-![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js)
+![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript)
 
 # auto8
 
-auto8 is an AI-assisted RFQ-to-quote workflow platform. It ingests RFQ (Request for Quotation) emails and Slack messages, classifies and extracts line items using LLM, matches items against a product catalogue, and generates draft quotes ready for review and approval — with optional Google Sheets export on approval.
+auto8 is an AI-assisted RFQ-to-quote workflow platform. It ingests RFQ (Request for Quotation) messages from Gmail, Outlook, and Slack, classifies and extracts line items using LLM, matches items against a product catalogue, and generates draft quotes ready for review and approval, with optional Google Sheets export on approval.
 
 ## Features
 
-- **RFQ intake** via email (Gmail OAuth) and Slack slash command, with deduplication
-- **Multi-connector ingestion** — configure multiple Gmail and Slack connectors from the admin UI
+- **RFQ intake** via Gmail, Outlook, and Slack, with per-connector deduplication
+- **Multi-connector ingestion** — configure multiple Gmail, Outlook, and Slack connectors from the admin UI
 - **AI classification** — LLM-based scoring to distinguish RFQs from non-RFQs; configurable threshold
 - **LLM extraction** — extracts structured line items (part number, description, quantity, unit, confidence) from RFQ body and attachments
 - **Attachment parsing** — PDF, DOCX, XLSX, CSV text extraction via background jobs
-- **Product catalogue** — upload items via XLSX/CSV, full-text search, active/inactive management
+- **Product catalogue** — upload items via XLSX/CSV, preview imports before writing, manual create/edit/reactivate, CSV export, active/inactive management
 - **Item matching** — keyword-based fuzzy matching of extracted items against catalogue; operator accept/override UI
 - **Quote workflow** — draft → submit → approve with sales-approver gate; AI-assisted quote generation from matched items
 - **Quote email** — compose and send quote emails via SMTP; optional AI-generated subject and intro (opt-in)
 - **Google Sheets export** — appends approved quotes to a spreadsheet via service account
-- **Background jobs** — DB-persisted job queue with cron polling, retry, and failure tracking
+- **Background jobs** — DB-persisted job queue for `attachment_parse`, `rfq_extract`, `item_match`, and `sheet_export`, with retry, stale-job recovery, and failure tracking
 - **User management** — admin CRUD for users; three roles: `admin`, `quote_operator`, `sales_approver`
 - **JWT cookie auth** — httpOnly access (15 min) + refresh (7 day) token pair; password reset via email
 - **Audit log** — append-only event log per resource
 - **Configurable LLM provider** — OpenAI, Anthropic, Google Gemini, or self-hosted Ollama; managed from admin Settings UI
+- **Connector credential encryption** — AES-256-GCM encryption for DB-stored connector credentials
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
-| API | NestJS 10, TypeScript strict |
-| Frontend | Next.js 15 (App Router), React, TypeScript |
+| API | NestJS 11, TypeScript strict |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript |
 | Database | PostgreSQL 16, Prisma ORM |
 | Auth | JWT (httpOnly cookies), bcrypt |
 | Logging | pino / nestjs-pino (JSON in production) |
-| Testing | Jest (API unit + e2e), 48 tests |
+| Testing | Vitest (API unit + e2e), 58 tests |
 | CI/CD | GitHub Actions (typecheck → build → test) |
 | Containerisation | Docker multi-stage build, Docker Compose |
 
@@ -132,36 +133,37 @@ npx prisma studio           # Open Prisma Studio (database browser)
 apps/
   api/
     src/
-      modules/
-        auth/               # JWT login, refresh, logout, password reset
-        users/              # User CRUD (admin-only writes)
-        rbac/               # RbacGuard, @Roles, @Public decorators
-        rfqs/               # RFQ intake, classification, extraction, quote workflow
-        quotes/             # Quote read endpoints
-        quote-email/        # Quote email compose and send
-        audit/              # Audit log
-        catalogue/          # Product catalogue upload and CRUD
-        attachments/        # Attachment parsing (PDF/DOCX/XLSX/CSV)
-        matching/           # RFQ item ↔ product matching
-        jobs/               # Background job queue + cron processor
-        sheet-export/       # Google Sheets export
-        settings/           # LLM provider settings
-        llm/                # LLM provider abstraction (OpenAI/Anthropic/Google/Ollama)
-        gmail/              # Gmail OAuth connector
-        slack/              # Slack connector
-        connector-registry/ # Multi-connector DB registry
-        scheduler/          # Cron scheduler (Gmail sync)
-        health/             # GET /api/health
-        common/             # Filters, DTOs, pipes
+      auth/                 # JWT login, refresh, logout, password reset
+      users/                # User CRUD (admin-only writes)
+      rbac/                 # RbacGuard, @Roles, @Public decorators
+      rfqs/                 # RFQ intake, classification, extraction, quote workflow
+      quotes/               # Quote read endpoints
+      quote-email/          # Quote email compose and send
+      audit/                # Audit log
+      catalogue/            # Product catalogue upload and CRUD
+      attachments/          # Attachment parsing (PDF/DOCX/XLSX/CSV/TXT)
+      matching/             # RFQ item ↔ product matching
+      jobs/                 # Background job queue + cron processor
+      sheet-export/         # Google Sheets export
+      settings/             # LLM provider settings
+      llm/                  # LLM provider abstraction (OpenAI/Anthropic/Google/Ollama)
+      gmail/                # Gmail OAuth connector
+      outlook/              # Outlook / Microsoft Graph connector
+      slack/                # Slack connector
+      connector-registry/   # Multi-connector DB registry + test/sync APIs
+      scheduler/            # Cron scheduler (Gmail + Outlook sync)
+      common/               # Filters, DTOs, pipes, shared server utilities
+      config/               # Joi-based env validation
+      connectors/           # Shared connector contracts
       prisma/
         schema.prisma
         migrations/
         seed.ts
   web/
     src/
-      app/                  # Next.js App Router pages
+      app/                  # Next.js App Router pages (rfqs, catalogue, connectors, users, jobs, settings)
       components/           # React components
-      lib/                  # api.ts, auth.ts utilities
+      lib/                  # api.ts, auth.ts, config.ts, hooks
 packages/
   shared/
     src/                    # Shared TypeScript interfaces and constants

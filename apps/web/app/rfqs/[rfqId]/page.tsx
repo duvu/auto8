@@ -4,12 +4,16 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
-import type { QuoteLineItemInput, RfqDetailView, SaveQuoteInput, UserSummary } from "@auto8/shared";
+import type { GenerateQuoteResult, QuoteLineItemInput, RfqDetailView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
 
 import { WorkspaceShell } from "../../../components/workspace-shell";
-import { approveQuote, fetchRfqDetail, fetchUsers, saveDraftQuote, submitQuote } from "../../../lib/api";
+import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
+import { MatchReviewPanel } from "../../../components/MatchReviewPanel";
+import { QuoteEmailTab } from "../../../components/QuoteEmailTab";
+import { approveQuote, fetchRfqDetail, generateQuote, getExtractedItems, saveDraftQuote, submitQuote } from "../../../lib/api";
+import { getAuthUser } from "../../../lib/auth";
+import type { AuthUser } from "../../../lib/auth";
 import { formatState } from "../../../lib/format";
-import { useDemoUser } from "../../../lib/use-demo-user";
 
 function buildDraft(detail: RfqDetailView | null): SaveQuoteInput {
   return {
@@ -34,22 +38,28 @@ function buildDraft(detail: RfqDetailView | null): SaveQuoteInput {
 export default function RfqDetailPage() {
   const params = useParams<{ rfqId: string }>();
   const rfqId = String(params.rfqId);
-  const [users, setUsers] = useState<UserSummary[]>([]);
   const [detail, setDetail] = useState<RfqDetailView | null>(null);
+  const [extractedItems, setExtractedItems] = useState<RfqExtractedItemView[]>([]);
   const [draft, setDraft] = useState<SaveQuoteInput>(buildDraft(null));
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"quote" | "email">("quote");
 
-  const { selectedUser, selectedUserId, selectUser } = useDemoUser(users);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    void getAuthUser().then(setAuthUser);
+  }, []);
 
   useEffect(() => {
     async function load() {
       try {
-        const [nextUsers, nextDetail] = await Promise.all([fetchUsers(), fetchRfqDetail(rfqId)]);
-        setUsers(nextUsers);
+        const [nextDetail, nextExtractedItems] = await Promise.all([fetchRfqDetail(rfqId), getExtractedItems(rfqId)]);
         setDetail(nextDetail);
+        setExtractedItems(nextExtractedItems);
         setDraft(buildDraft(nextDetail));
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load RFQ detail.");
@@ -62,7 +72,7 @@ export default function RfqDetailPage() {
   }, [rfqId]);
 
   const quoteLocked = detail?.quote?.status === "pending_approval" || detail?.quote?.status === "approved";
-  const canApprove = detail?.quote?.status === "pending_approval" && selectedUser?.role === "sales_approver";
+  const canApprove = detail?.quote?.status === "pending_approval" && authUser?.role === "sales_approver";
   const quoteTotal = useMemo(
     () => draft.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
     [draft.lineItems]
@@ -141,6 +151,33 @@ export default function RfqDetailPage() {
     }
   }
 
+  async function handleGenerateQuote() {
+    setGenerating(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const result: GenerateQuoteResult = await generateQuote(rfqId);
+      const nextDetail = await fetchRfqDetail(rfqId);
+      startTransition(() => {
+        setDetail(nextDetail);
+        setDraft(buildDraft(nextDetail));
+        setSuccessMessage(`AI draft generated using ${result.model}.`);
+      });
+    } catch (genError) {
+      const msg = genError instanceof Error ? genError.message : "AI generation failed.";
+      if (msg.includes("503") || msg.toLowerCase().includes("not available")) {
+        setError("AI generation is not available — OPENAI_API_KEY is not configured.");
+      } else if (msg.includes("409") || msg.toLowerCase().includes("submitted") || msg.toLowerCase().includes("approved")) {
+        setError("Quote has already been submitted or approved and cannot be regenerated.");
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   if (loading || !detail) {
     return <main className="page"><section className="panel">Loading RFQ detail...</section></main>;
   }
@@ -149,10 +186,7 @@ export default function RfqDetailPage() {
     <WorkspaceShell
       title={`${detail.reference} / Quote Workspace`}
       description="Review inbound RFQ details, maintain the draft quote, and run the approval handoff without leaving the workflow regardless of source."
-      selectedUser={selectedUser}
-      selectedUserId={selectedUserId}
-      users={users}
-      onUserChange={selectUser}
+      authUser={authUser}
     >
       {error ? <div className="error">{error}</div> : null}
       {successMessage ? <div className="success-banner">{successMessage}</div> : null}
@@ -166,6 +200,39 @@ export default function RfqDetailPage() {
         </button>
       </div>
 
+      <div className="tab-bar">
+        <button
+          className={activeTab === "quote" ? "tab-active" : "tab"}
+          type="button"
+          onClick={() => setActiveTab("quote")}
+        >
+          Quote
+        </button>
+        {detail.quote?.status === "approved" && (
+          <button
+            className={activeTab === "email" ? "tab-active" : "tab"}
+            type="button"
+            onClick={() => setActiveTab("email")}
+          >
+            Email{detail.emailSummary ? ` (${detail.emailSummary.totalSent} sent)` : ""}
+          </button>
+        )}
+      </div>
+
+      {activeTab === "email" && detail.quote ? (
+        <section className="panel">
+          <h3>Quote email</h3>
+          {detail.emailSummary && (
+            <p className="email-summary">
+              Sent {detail.emailSummary.totalSent} time(s)
+              {detail.emailSummary.lastSentAt ? `, last at ${new Date(detail.emailSummary.lastSentAt).toLocaleString()}` : ""}
+              {detail.emailSummary.totalErrors > 0 ? `, ${detail.emailSummary.totalErrors} error(s)` : ""}
+            </p>
+          )}
+          <QuoteEmailTab quoteId={detail.quote.id} />
+        </section>
+      ) : (
+      <>
       <section className="detail-grid">
         <article className="panel">
           <div className="panel-header">
@@ -243,6 +310,16 @@ export default function RfqDetailPage() {
             {!detail.history.length ? <div className="empty">No quote status events yet.</div> : null}
           </div>
         </aside>
+      </section>
+
+      <ExtractedItemsPanel items={extractedItems} />
+
+      <section className="panel">
+        <div className="stack">
+          <h2>Match Review</h2>
+          <p className="panel-subtitle">Review catalogue matches for extracted items and create a quote from them.</p>
+        </div>
+        <MatchReviewPanel rfqId={rfqId} onQuoteCreated={() => void refreshDetail()} />
       </section>
 
       <section className="panel">
@@ -324,30 +401,40 @@ export default function RfqDetailPage() {
         <div className="actions">
           <button
             className="button"
-            disabled={working || !selectedUserId || quoteLocked}
+            disabled={working || quoteLocked}
             type="button"
-            onClick={() => void runAction(() => saveDraftQuote(rfqId, draft, selectedUserId), "Draft quote saved.")}
+            onClick={() => void runAction(() => saveDraftQuote(rfqId, draft), "Draft quote saved.")}
           >
             {working ? "Working..." : detail.quote ? "Update draft" : "Create draft"}
           </button>
           <button
             className="button-secondary"
-            disabled={working || !detail.quote || detail.quote.status !== "draft" || !selectedUserId}
+            disabled={working || generating || quoteLocked}
             type="button"
-            onClick={() => void runAction(() => submitQuote(detail.quote!.id, selectedUserId), "Quote submitted for sales approval.")}
+            onClick={() => void handleGenerateQuote()}
+          >
+            {generating ? "Generating..." : "Generate with AI"}
+          </button>
+          <button
+            className="button-secondary"
+            disabled={working || !detail.quote || detail.quote.status !== "draft"}
+            type="button"
+            onClick={() => void runAction(() => submitQuote(detail.quote!.id), "Quote submitted for sales approval.")}
           >
             Submit for approval
           </button>
           <button
             className="button-secondary"
-            disabled={working || !detail.quote || !canApprove || !selectedUserId}
+            disabled={working || !detail.quote || !canApprove}
             type="button"
-            onClick={() => void runAction(() => approveQuote(detail.quote!.id, selectedUserId), "Quote approved by sales.")}
+            onClick={() => void runAction(() => approveQuote(detail.quote!.id), "Quote approved by sales.")}
           >
             Approve quote
           </button>
         </div>
       </section>
+      </>
+      )}
     </WorkspaceShell>
   );
 }

@@ -1,3 +1,5 @@
+import * as bcrypt from "bcrypt";
+
 import { PrismaClient, QuoteStatus, RfqWorkflowState, UserRole } from "@prisma/client";
 
 process.loadEnvFile?.();
@@ -12,11 +14,29 @@ async function main() {
   await prisma.rfqIntake.deleteMany();
   await prisma.user.deleteMany();
 
+  const operatorPasswordHash = bcrypt.hashSync("auto8", 10);
+  const salesPasswordHash = bcrypt.hashSync("auto8", 10);
+  const adminPasswordHash = bcrypt.hashSync("admin123", 10);
+
+  // Upsert admin user
+  await prisma.user.upsert({
+    where: { email: "admin@auto8.dev" },
+    update: { passwordHash: adminPasswordHash, isActive: true },
+    create: {
+      email: "admin@auto8.dev",
+      name: "Auto8 Admin",
+      role: UserRole.admin,
+      isActive: true,
+      passwordHash: adminPasswordHash,
+    },
+  });
+
   const quoteOperator = await prisma.user.create({
     data: {
       email: "operator@auto8.dev",
       name: "Quinn Operator",
-      role: UserRole.quote_operator
+      role: UserRole.quote_operator,
+      passwordHash: operatorPasswordHash,
     }
   });
 
@@ -24,7 +44,8 @@ async function main() {
     data: {
       email: "sales@auto8.dev",
       name: "Sam Sales",
-      role: UserRole.sales_approver
+      role: UserRole.sales_approver,
+      passwordHash: salesPasswordHash,
     }
   });
 

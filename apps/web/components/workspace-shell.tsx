@@ -1,24 +1,20 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
-import type { UserSummary } from "@auto8/shared";
+import type { AuthUser } from "../lib/auth";
+import { logout } from "../lib/auth";
 
 interface WorkspaceShellProps {
   title: string;
   description: string;
-  selectedUser: UserSummary | null;
-  selectedUserId: string;
-  users: UserSummary[];
-  onUserChange: (userId: string) => void;
+  authUser: AuthUser | null;
   children: ReactNode;
 }
 
 export function WorkspaceShell({
   title,
   description,
-  selectedUser,
-  selectedUserId,
-  users,
-  onUserChange,
+  authUser,
   children
 }: WorkspaceShellProps) {
   return (
@@ -30,22 +26,41 @@ export function WorkspaceShell({
             <h1>{title}</h1>
             <p className="panel-subtitle">{description}</p>
           </div>
-          <label>
-            Acting User
-            <select value={selectedUserId} onChange={(event) => onUserChange(event.target.value)}>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({user.role})
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {selectedUser ? (
           <div className="badge-row">
-            <span className="badge dark">{selectedUser.name}</span>
-            <span className={`badge ${selectedUser.role === "sales_approver" ? "success" : ""}`}>{selectedUser.role}</span>
-            <span className="badge dark">{selectedUser.email}</span>
+            {authUser ? (
+              <>
+                <span className="badge dark">{authUser.role}</span>
+                <button
+                  className="button-ghost"
+                  type="button"
+                  onClick={() => {
+                    void logout().then(() => {
+                      window.location.href = "/login";
+                    });
+                  }}
+                >
+                  Log out
+                </button>
+              </>
+            ) : (
+              <Link className="button-ghost" href="/login">Log in</Link>
+            )}
+          </div>
+        </div>
+        {authUser ? (
+          <div className="badge-row">
+            <span className="badge dark">{authUser.role}</span>
+            <Link href="/catalogue" className="button-ghost">Catalogue</Link>
+            <Link href="/jobs" className="button-ghost">Jobs</Link>
+            {authUser.role === "admin" && (
+              <Link href="/connectors" className="button-ghost">Connectors</Link>
+            )}
+            {authUser.role === "admin" && (
+              <Link href="/users" className="button-ghost">Manage Users</Link>
+            )}
+            {authUser.role === "admin" && (
+              <Link href="/settings" className="button-ghost">Settings</Link>
+            )}
           </div>
         ) : null}
       </section>

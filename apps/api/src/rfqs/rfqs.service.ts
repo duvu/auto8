@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 import {
   BadRequestException,
   ConflictException,
@@ -8,12 +10,19 @@ import {
 } from "@nestjs/common";
 import { QuoteStatus, UserRole, type Prisma } from "@prisma/client";
 
-import type { IntakeEmailInput, QuoteLineItemInput, RfqDetailView, RfqListItemView, SaveQuoteInput } from "@auto8/shared";
+import type {
+  IntakeEmailInput,
+  QuoteLineItemInput,
+  RfqDetailView,
+  RfqListItemView,
+  SaveQuoteInput,
+  SlackRfqIntakeInput
+} from "@auto8/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
 
 const rfqDetailInclude = {
-  email: true,
+  intake: true,
   quote: {
     include: {
       lineItems: {
@@ -33,45 +42,134 @@ const rfqDetailInclude = {
   }
 } satisfies Prisma.RfqInclude;
 
+type RequestHeaders = Record<string, string | string[] | undefined>;
+
+type NormalizedRfqIntake = {
+  sourceType: "email" | "slack";
+  sourceLabel: string;
+  senderEmail: string | null;
+  senderName: string | null;
+  subject: string;
+  body: string;
+  receivedAt: string;
+  rawPayload: string;
+  slackWorkspaceId?: string | null;
+  slackWorkspaceName?: string | null;
+  slackChannelId?: string | null;
+  slackChannelName?: string | null;
+  slackSubmitterId?: string | null;
+  slackSubmitterName?: string | null;
+  slackSubmitterEmail?: string | null;
+  gmailMessageId?: string | null;
+  gmailThreadId?: string | null;
+};
+
+export type GmailSyncSummary = {
+  imported: number;
+  skipped: number;
+  failed: number;
+  importedReferences: string[];
+};
+
 @Injectable()
 export class RfqsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async intakeEmail(input: IntakeEmailInput): Promise<RfqDetailView> {
-    this.validateIntake(input);
+    this.validateEmailIntake(input);
 
-    const rfq = await this.prisma.$transaction(async (tx) => {
-      const sequence = (await tx.rfq.count()) + 1001;
-      const email = await tx.rfqEmail.create({
-        data: {
-          fromEmail: input.fromEmail.trim().toLowerCase(),
-          fromName: this.optionalString(input.fromName),
-          subject: input.subject.trim(),
-          body: input.body.trim(),
-          receivedAt: new Date(input.receivedAt),
-          rawPayload: JSON.stringify(input)
-        }
-      });
-
-      return tx.rfq.create({
-        data: {
-          emailId: email.id,
-          reference: `RFQ-${String(sequence).padStart(4, "0")}`
-        },
-        include: rfqDetailInclude
-      });
+    return this.createRfqFromIntake({
+      sourceType: "email",
+      sourceLabel: "Email",
+      senderEmail: input.fromEmail.trim().toLowerCase(),
+      senderName: this.optionalString(input.fromName),
+      subject: input.subject.trim(),
+      body: input.body.trim(),
+      receivedAt: input.receivedAt,
+      rawPayload: JSON.stringify(input)
     });
+  }
 
-    return this.serializeRfqDetail(rfq);
+  async intakeSlack(input: SlackRfqIntakeInput, rawPayload: string, headers: RequestHeaders): Promise<RfqDetailView> {
+    this.validateSlackIntake(input);
+    this.verifySlackRequest(headers, rawPayload, input.workspaceId);
+
+    return this.createRfqFromIntake({
+      sourceType: "slack",
+      sourceLabel: input.channelName?.trim() ? `Slack / #${input.channelName.trim()}` : "Slack",
+      senderEmail: this.normalizeOptionalEmail(input.submitterEmail),
+      senderName: this.optionalString(input.submitterName),
+      subject: input.subject.trim(),
+      body: input.body.trim(),
+      receivedAt: input.submittedAt,
+      rawPayload,
+      slackWorkspaceId: input.workspaceId.trim(),
+      slackWorkspaceName: this.optionalString(input.workspaceName),
+      slackChannelId: input.channelId.trim(),
+      slackChannelName: this.optionalString(input.channelName),
+      slackSubmitterId: input.submitterId.trim(),
+      slackSubmitterName: this.optionalString(input.submitterName),
+      slackSubmitterEmail: this.normalizeOptionalEmail(input.submitterEmail)
+    });
+  }
+
+  async syncGmail(gmailService: { fetchMessages: (q?: string) => Promise<any[]>; isConfigured: () => boolean }, query?: string): Promise<GmailSyncSummary> {
+    const summary: GmailSyncSummary = { imported: 0, skipped: 0, failed: 0, importedReferences: [] };
+
+    if (!gmailService.isConfigured()) {
+      throw new Error("Gmail connector is not configured.");
+    }
+
+    const messages = await gmailService.fetchMessages(query);
+
+    for (const msg of messages) {
+      try {
+        // Deduplication: skip if already imported
+        const existing = await this.prisma.rfqIntake.findUnique({ where: { gmailMessageId: msg.messageId } });
+        if (existing) {
+          summary.skipped++;
+          continue;
+        }
+
+        const { fromEmail, fromName } = parseFromHeader(msg.from ?? "");
+        const subject = msg.subject?.trim() || "(no subject)";
+        const body = msg.body?.trim() || "(empty)";
+
+        if (!fromEmail) {
+          summary.failed++;
+          continue;
+        }
+
+        const detail = await this.createRfqFromIntake({
+          sourceType: "email",
+          sourceLabel: "Gmail",
+          senderEmail: fromEmail,
+          senderName: fromName,
+          subject,
+          body,
+          receivedAt: msg.receivedAt,
+          rawPayload: JSON.stringify(msg),
+          gmailMessageId: msg.messageId,
+          gmailThreadId: msg.threadId
+        });
+
+        summary.imported++;
+        summary.importedReferences.push(detail.reference);
+      } catch (error) {
+        summary.failed++;
+      }
+    }
+
+    return summary;
   }
 
   async listRfqs(): Promise<RfqListItemView[]> {
     const rfqs = await this.prisma.rfq.findMany({
       include: {
-        email: true
+        intake: true
       },
       orderBy: {
-        email: {
+        intake: {
           receivedAt: "desc"
         }
       }
@@ -127,25 +225,15 @@ export class RfqsService {
           }
         });
 
-        await tx.quoteStatusEvent.create({
-          data: {
-            quoteId: quote.id,
-            actorId: actor.id,
-            status: QuoteStatus.draft
-          }
-        });
-
-        await tx.rfq.update({
-          where: { id: rfqId },
-          data: {
-            workflowState: "draft"
-          }
-        });
+        await this.recordStatusEvent(tx, quote.id, QuoteStatus.draft, actor.id);
+        await this.updateWorkflowState(tx, rfqId, "draft");
       });
     } else {
+      const existingQuoteId = rfq.quote.id;
+
       await this.prisma.$transaction(async (tx) => {
         await tx.quote.update({
-          where: { id: rfq.quote!.id },
+          where: { id: existingQuoteId },
           data: {
             customerName: input.customerName.trim(),
             customerCompany: input.customerCompany.trim(),
@@ -157,12 +245,7 @@ export class RfqsService {
           }
         });
 
-        await tx.rfq.update({
-          where: { id: rfqId },
-          data: {
-            workflowState: "draft"
-          }
-        });
+        await this.updateWorkflowState(tx, rfqId, "draft");
       });
     }
 
@@ -175,8 +258,7 @@ export class RfqsService {
     const quote = await this.prisma.quote.findUnique({
       where: { id: quoteId },
       include: {
-        lineItems: true,
-        rfq: true
+        lineItems: true // rfqId scalar used directly; rfq relation not needed
       }
     });
 
@@ -201,20 +283,8 @@ export class RfqsService {
         }
       });
 
-      await tx.quoteStatusEvent.create({
-        data: {
-          quoteId,
-          actorId,
-          status: QuoteStatus.pending_approval
-        }
-      });
-
-      await tx.rfq.update({
-        where: { id: quote.rfqId },
-        data: {
-          workflowState: "pending_approval"
-        }
-      });
+      await this.recordStatusEvent(tx, quoteId, QuoteStatus.pending_approval, actorId);
+      await this.updateWorkflowState(tx, quote.rfqId, "pending_approval");
     });
 
     return this.getRfqDetail(quote.rfqId);
@@ -249,23 +319,48 @@ export class RfqsService {
         }
       });
 
-      await tx.quoteStatusEvent.create({
-        data: {
-          quoteId,
-          actorId: actor.id,
-          status: QuoteStatus.approved
-        }
-      });
-
-      await tx.rfq.update({
-        where: { id: quote.rfqId },
-        data: {
-          workflowState: "approved"
-        }
-      });
+      await this.recordStatusEvent(tx, quoteId, QuoteStatus.approved, actor.id);
+      await this.updateWorkflowState(tx, quote.rfqId, "approved");
     });
 
     return this.getRfqDetail(quote.rfqId);
+  }
+
+  private async createRfqFromIntake(input: NormalizedRfqIntake): Promise<RfqDetailView> {
+    const rfq = await this.prisma.$transaction(async (tx) => {
+      const sequence = (await tx.rfq.count()) + 1001;
+      const intake = await tx.rfqIntake.create({
+        data: {
+          sourceType: input.sourceType,
+          sourceLabel: input.sourceLabel,
+          senderEmail: input.senderEmail,
+          senderName: input.senderName,
+          subject: input.subject,
+          body: input.body,
+          receivedAt: new Date(input.receivedAt),
+          rawPayload: input.rawPayload,
+          slackWorkspaceId: input.slackWorkspaceId,
+          slackWorkspaceName: input.slackWorkspaceName,
+          slackChannelId: input.slackChannelId,
+          slackChannelName: input.slackChannelName,
+          slackSubmitterId: input.slackSubmitterId,
+          slackSubmitterName: input.slackSubmitterName,
+          slackSubmitterEmail: input.slackSubmitterEmail,
+          gmailMessageId: input.gmailMessageId,
+          gmailThreadId: input.gmailThreadId
+        }
+      });
+
+      return tx.rfq.create({
+        data: {
+          intakeId: intake.id,
+          reference: `RFQ-${String(sequence).padStart(4, "0")}`
+        },
+        include: rfqDetailInclude
+      });
+    });
+
+    return this.serializeRfqDetail(rfq);
   }
 
   private async requireUser(actorId?: string) {
@@ -284,7 +379,7 @@ export class RfqsService {
     return actor;
   }
 
-  private validateIntake(input: IntakeEmailInput) {
+  private validateEmailIntake(input: IntakeEmailInput) {
     if (!input.fromEmail?.trim() || !input.subject?.trim() || !input.body?.trim() || !input.receivedAt?.trim()) {
       throw new BadRequestException("Inbound RFQ email requires sender, subject, body, and receivedAt.");
     }
@@ -292,6 +387,93 @@ export class RfqsService {
     if (Number.isNaN(Date.parse(input.receivedAt))) {
       throw new BadRequestException("receivedAt must be an ISO-8601 timestamp.");
     }
+  }
+
+  private validateSlackIntake(input: SlackRfqIntakeInput) {
+    if (
+      !input.workspaceId?.trim() ||
+      !input.channelId?.trim() ||
+      !input.submitterId?.trim() ||
+      !input.subject?.trim() ||
+      !input.body?.trim() ||
+      !input.submittedAt?.trim()
+    ) {
+      throw new BadRequestException(
+        "Slack RFQ requires workspace, channel, submitter, subject, body, and submittedAt."
+      );
+    }
+
+    if (Number.isNaN(Date.parse(input.submittedAt))) {
+      throw new BadRequestException("submittedAt must be an ISO-8601 timestamp.");
+    }
+  }
+
+  private verifySlackRequest(headers: RequestHeaders, rawPayload: string, workspaceId: string) {
+    const signingSecret = process.env.SLACK_SIGNING_SECRET?.trim();
+
+    if (!signingSecret) {
+      throw new UnauthorizedException("Slack connector is not configured.");
+    }
+
+    const timestampHeader = this.readHeader(headers, "x-slack-request-timestamp");
+    const signatureHeader = this.readHeader(headers, "x-slack-signature");
+
+    if (!timestampHeader || !signatureHeader) {
+      throw new UnauthorizedException("Slack signature headers are required.");
+    }
+
+    const timestamp = Number(timestampHeader);
+
+    if (!Number.isInteger(timestamp)) {
+      throw new UnauthorizedException("Slack request timestamp is invalid.");
+    }
+
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowInSeconds - timestamp) > 300) {
+      throw new UnauthorizedException("Slack request timestamp is outside the allowed window.");
+    }
+
+    const allowedWorkspaceIds = (process.env.SLACK_ALLOWED_WORKSPACE_IDS ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (allowedWorkspaceIds.length > 0 && !allowedWorkspaceIds.includes(workspaceId.trim())) {
+      throw new ForbiddenException("Slack workspace is not allowed.");
+    }
+
+    const expectedSignature = `v0=${createHmac("sha256", signingSecret)
+      .update(`v0:${timestamp}:${rawPayload}`)
+      .digest("hex")}`;
+
+    const providedBuffer = Buffer.from(signatureHeader);
+    const expectedBuffer = Buffer.from(expectedSignature);
+
+    if (providedBuffer.length !== expectedBuffer.length || !timingSafeEqual(providedBuffer, expectedBuffer)) {
+      throw new UnauthorizedException("Slack request signature is invalid.");
+    }
+  }
+
+  private async updateWorkflowState(
+    tx: Prisma.TransactionClient,
+    rfqId: string,
+    state: "new" | "draft" | "pending_approval" | "approved"
+  ) {
+    return tx.rfq.update({ where: { id: rfqId }, data: { workflowState: state } });
+  }
+
+  private async recordStatusEvent(
+    tx: Prisma.TransactionClient,
+    quoteId: string,
+    status: QuoteStatus,
+    actorId?: string
+  ) {
+    return tx.quoteStatusEvent.create({ data: { quoteId, actorId, status } });
+  }
+
+  private readHeader(headers: RequestHeaders, name: string) {
+    const value = headers[name.toLowerCase()] ?? headers[name];
+    return Array.isArray(value) ? value[0] : value;
   }
 
   private validateQuoteInput(input: SaveQuoteInput) {
@@ -333,9 +515,11 @@ export class RfqsService {
     id: string;
     reference: string;
     workflowState: "new" | "draft" | "pending_approval" | "approved";
-    email: {
-      fromEmail: string;
-      fromName: string | null;
+    intake: {
+      sourceType: "email" | "slack";
+      sourceLabel: string;
+      senderEmail: string | null;
+      senderName: string | null;
       subject: string;
       receivedAt: Date;
     };
@@ -343,18 +527,27 @@ export class RfqsService {
     return {
       id: rfq.id,
       reference: rfq.reference,
-      senderEmail: rfq.email.fromEmail,
-      senderName: rfq.email.fromName,
-      subject: rfq.email.subject,
-      receivedAt: rfq.email.receivedAt.toISOString(),
-      workflowState: rfq.workflowState
+      senderEmail: rfq.intake.senderEmail,
+      senderName: rfq.intake.senderName,
+      subject: rfq.intake.subject,
+      receivedAt: rfq.intake.receivedAt.toISOString(),
+      workflowState: rfq.workflowState,
+      sourceType: rfq.intake.sourceType,
+      sourceLabel: rfq.intake.sourceLabel
     };
   }
 
   private serializeRfqDetail(rfq: Prisma.RfqGetPayload<{ include: typeof rfqDetailInclude }>): RfqDetailView {
     return {
       ...this.serializeRfqListItem(rfq),
-      body: rfq.email.body,
+      body: rfq.intake.body,
+      slackWorkspaceId: rfq.intake.slackWorkspaceId,
+      slackWorkspaceName: rfq.intake.slackWorkspaceName,
+      slackChannelId: rfq.intake.slackChannelId,
+      slackChannelName: rfq.intake.slackChannelName,
+      slackSubmitterId: rfq.intake.slackSubmitterId,
+      slackSubmitterName: rfq.intake.slackSubmitterName,
+      slackSubmitterEmail: rfq.intake.slackSubmitterEmail,
       quote: rfq.quote
         ? {
             id: rfq.quote.id,
@@ -384,8 +577,27 @@ export class RfqsService {
     };
   }
 
-  private optionalString(value: string | undefined) {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed : null;
+  private normalizeOptionalEmail(value: string | null | undefined) {
+    return this.optionalString(value)?.toLowerCase() ?? null;
   }
+
+  private optionalString(value: string | null | undefined) {
+    return value?.trim() || null;
+  }
+}
+
+function parseFromHeader(from: string): { fromEmail: string | null; fromName: string | null } {
+  if (!from) return { fromEmail: null, fromName: null };
+
+  // "Display Name <email@example.com>"
+  const angleMatch = from.match(/^(.*?)\s*<([^>]+)>\s*$/);
+  if (angleMatch) {
+    const fromName = angleMatch[1].replace(/^["']|["']$/g, "").trim() || null;
+    const fromEmail = angleMatch[2].trim().toLowerCase() || null;
+    return { fromEmail, fromName };
+  }
+
+  // bare email
+  const bare = from.trim().toLowerCase();
+  return { fromEmail: bare || null, fromName: null };
 }

@@ -22,7 +22,9 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 async function request<T>(path: string, init?: RequestInit, userId?: string): Promise<T> {
   const headers = new Headers(init?.headers);
-  headers.set("Content-Type", "application/json");
+  if (init?.body !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
   if (userId) {
     headers.set("x-user-id", userId);
   }
@@ -63,15 +65,9 @@ export function saveDraftQuote(rfqId: string, input: SaveQuoteInput, userId: str
 }
 
 export function submitQuote(quoteId: string, userId: string) {
-  return request<RfqDetailView>(`/quotes/${quoteId}/submit`, {
-    method: "POST",
-    body: JSON.stringify({})
-  }, userId);
+  return request<RfqDetailView>(`/quotes/${quoteId}/submit`, { method: "POST" }, userId);
 }
 
 export function approveQuote(quoteId: string, userId: string) {
-  return request<RfqDetailView>(`/quotes/${quoteId}/approve`, {
-    method: "POST",
-    body: JSON.stringify({})
-  }, userId);
+  return request<RfqDetailView>(`/quotes/${quoteId}/approve`, { method: "POST" }, userId);
 }

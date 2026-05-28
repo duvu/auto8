@@ -25,6 +25,11 @@ enum RfqWorkflowState {
   approved
 }
 
+enum RfqSourceType {
+  email
+  slack
+}
+
 model User {
   id             String             @id @default(cuid())
   email          String             @unique
@@ -36,16 +41,27 @@ model User {
   statusEvents   QuoteStatusEvent[]
 }
 
-model RfqEmail {
-  id         String   @id @default(cuid())
-  fromEmail  String
-  fromName   String?
-  subject    String
-  body       String
-  receivedAt DateTime
-  rawPayload String?
-  createdAt  DateTime @default(now())
-  rfq        Rfq?
+model RfqIntake {
+  id                 String        @id @default(cuid())
+  sourceType         RfqSourceType
+  sourceLabel        String
+  senderEmail        String?
+  senderName         String?
+  subject            String
+  body               String
+  receivedAt         DateTime
+  rawPayload  String
+  slackWorkspaceId   String?
+  slackWorkspaceName String?
+  slackChannelId     String?
+  slackChannelName   String?
+  slackSubmitterId   String?
+  slackSubmitterName String?
+  slackSubmitterEmail String?
+  gmailMessageId     String?       @unique
+  gmailThreadId      String?
+  createdAt          DateTime      @default(now())
+  rfq                Rfq?
 }
 
 model Rfq {
@@ -54,8 +70,8 @@ model Rfq {
   workflowState RfqWorkflowState @default(new)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
-  emailId       String           @unique
-  email         RfqEmail         @relation(fields: [emailId], references: [id])
+  intakeId       String          @unique
+  intake         RfqIntake       @relation(fields: [intakeId], references: [id])
   quote         Quote?
 }
 

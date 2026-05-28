@@ -1,6 +1,7 @@
 import * as bcrypt from "bcrypt";
 
 import { PrismaClient, QuoteStatus, RfqWorkflowState, UserRole } from "@prisma/client";
+import { seedDemoRfqs } from "./demo-seed";
 
 process.loadEnvFile?.();
 
@@ -165,6 +166,11 @@ async function main() {
   });
 
   console.log("Seeded users:", { quoteOperator: quoteOperator.email, salesApprover: salesApprover.email });
+
+  // Demo dataset — seeded when SEED_DEMO=true env var or --demo CLI arg
+  if (process.env['SEED_DEMO'] === 'true' || process.argv.includes('--demo')) {
+    await seedDemoRfqs(prisma, quoteOperator.id, salesApprover.id);
+  }
 }
 
 main()

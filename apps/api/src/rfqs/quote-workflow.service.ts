@@ -167,6 +167,10 @@ export class QuoteWorkflowService {
 
     const detail = await this.rfqIntakeService.getRfqDetail(quote.rfqId);
     this.auditService.log({ actorId, action: 'quote.submit', resourceType: 'quote', resourceId: quoteId });
+    // Advance pipeline status to quote_submitted
+    this.rfqIntakeService.updatePipelineStatus(quote.rfqId, "quote_submitted").catch((err: unknown) =>
+      this.logger.error("Failed to update pipeline status to quote_submitted", err),
+    );
     return detail;
   }
 

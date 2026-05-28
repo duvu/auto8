@@ -4,6 +4,7 @@ import type { RfqExtractedCustomerView, RfqExtractedItemView } from "@auto8/shar
 import { PrismaService } from "../prisma/prisma.service";
 import { LlmService } from "../llm/llm.service";
 import { JobsService } from "../jobs/jobs.service";
+import type { UpdateExtractedItemDto } from "./dto/update-extracted-item.dto";
 
 interface ExtractedLineItem {
   partNumber?: string | null;
@@ -206,6 +207,35 @@ Return ONLY valid JSON like: {"items": [...], "customer": {...}}`;
       requestedDeadline: customer.requestedDeadline as string | null,
       notes: customer.notes as string | null,
       createdAt: (customer.createdAt as Date).toISOString(),
+    };
+  }
+
+  async updateItem(rfqId: string, itemId: string, dto: UpdateExtractedItemDto): Promise<RfqExtractedItemView> {
+    const item = await this.prisma.rfqExtractedItem.findUnique({ where: { id: itemId } });
+    if (!item) throw new NotFoundException("Extracted item not found.");
+    if (item.rfqId !== rfqId) throw new NotFoundException("Extracted item does not belong to this RFQ.");
+
+    const updateData: Record<string, unknown> = {};
+    if (dto.description !== undefined) updateData["description"] = dto.description;
+    if (dto.partNumber !== undefined) updateData["partNumber"] = dto.partNumber;
+    if (dto.quantity !== undefined) updateData["quantity"] = dto.quantity;
+    if (dto.unit !== undefined) updateData["unit"] = dto.unit;
+
+    const updated = await this.prisma.rfqExtractedItem.update({
+      where: { id: itemId },
+      data: updateData,
+    });
+
+    return {
+      id: updated.id,
+      rfqId: updated.rfqId,
+      partNumber: updated.partNumber,
+      description: updated.description,
+      quantity: updated.quantity,
+      unit: updated.unit,
+      confidence: updated.confidence,
+      confidenceReason: (updated as { confidenceReason?: string | null }).confidenceReason ?? null,
+      createdAt: updated.createdAt.toISOString(),
     };
   }
 }

@@ -9,6 +9,7 @@ import { PaginationQueryDto } from "../common/dto/pagination.dto";
 import { RfqExtractionService } from "./rfq-extraction.service";
 import { IntakeEmailDto } from "./dto/intake-email.dto";
 import { SaveQuoteDto } from "./dto/save-quote.dto";
+import { UpdateExtractedItemDto } from "./dto/update-extracted-item.dto";
 import { QuoteWorkflowService } from "./quote-workflow.service";
 import { RfqIntakeService } from "./rfq-intake.service";
 import { ItemMatchingService } from "../matching/item-matching.service";
@@ -117,6 +118,16 @@ export class RfqsController {
     }
     await this.jobsService.enqueue("sheet_export", { quoteId: rfq.quote.id });
     return { ok: true };
+  }
+
+  @Patch(":rfqId/extracted-items/:itemId")
+  @Roles(UserRole.quote_operator)
+  async updateExtractedItem(
+    @Param("rfqId") rfqId: string,
+    @Param("itemId") itemId: string,
+    @Body() body: UpdateExtractedItemDto,
+  ) {
+    return this.rfqExtractionService.updateItem(rfqId, itemId, body);
   }
 
   @Get(":rfqId/extracted-customer")

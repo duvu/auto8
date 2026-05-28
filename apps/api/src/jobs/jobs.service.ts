@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AttachmentService } from "../attachments/attachment.service";
 import { ItemMatchingService } from "../matching/item-matching.service";
 import { SheetExportService } from "../sheet-export/sheet-export.service";
+import { AuditService } from "../audit/audit.service";
 
 export type JobType = "attachment_parse" | "item_match" | "sheet_export";
 
@@ -17,6 +18,7 @@ export class JobsService implements OnModuleInit {
     private readonly attachmentService: AttachmentService,
     @Optional() private readonly itemMatchingService?: ItemMatchingService,
     @Optional() private readonly sheetExportService?: SheetExportService,
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   onModuleInit(): void {
@@ -57,9 +59,14 @@ export class JobsService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_5_SECONDS)
   async processPendingJobs(): Promise<void> {
+    const now = new Date();
     const jobs = await this.prisma.backgroundJob.findMany({
       where: {
         status: "pending",
+        OR: [
+          { nextRunAt: null },
+          { nextRunAt: { lte: now } },
+        ],
       },
       take: 20,
       orderBy: { createdAt: "asc" },
@@ -102,19 +109,73 @@ export class JobsService implements OnModuleInit {
           where: { id: job.id },
           data: { status: "done" },
         });
+        // Audit: job completed
+        this.auditService?.log({
+          actorId: null,
+          action: "completed",
+          resourceType: "background_job",
+          resourceId: job.id,
+          after: { type: job.type, attempts: job.attempts + 1 },
+        });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         this.logger.error(`Job ${job.id} (${job.type}) failed: ${errorMessage}`);
         const newAttempts = job.attempts + 1;
         const shouldRetry = newAttempts < job.maxAttempts;
+
+        let nextRunAt: Date | undefined;
+        if (shouldRetry) {
+          // Exponential backoff: min(5000 * 2^(attempts) + jitter(0..1000), 300000)
+          const backoffMs = Math.min(5000 * Math.pow(2, newAttempts - 1) + Math.floor(Math.random() * 1000), 300000);
+          nextRunAt = new Date(Date.now() + backoffMs);
+        }
+
         await this.prisma.backgroundJob.update({
           where: { id: job.id },
           data: {
             status: shouldRetry ? "pending" : "failed",
             errorMessage,
+            ...(nextRunAt ? { nextRunAt } : {}),
           },
         });
+
+        // Audit: job failed (max attempts reached)
+        if (!shouldRetry) {
+          this.auditService?.log({
+            actorId: null,
+            action: "failed",
+            resourceType: "background_job",
+            resourceId: job.id,
+            after: { type: job.type, attempts: newAttempts, error: errorMessage },
+          });
+        }
       }
     }
+  }
+
+  serializeJob(job: {
+    id: string;
+    type: string;
+    status: string;
+    payload: string;
+    attempts: number;
+    maxAttempts: number;
+    errorMessage: string | null;
+    nextRunAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    return {
+      id: job.id,
+      type: job.type,
+      status: job.status,
+      payload: job.payload,
+      attempts: job.attempts,
+      maxAttempts: job.maxAttempts,
+      errorMessage: job.errorMessage,
+      nextRunAt: job.nextRunAt?.toISOString() ?? null,
+      createdAt: job.createdAt.toISOString(),
+      updatedAt: job.updatedAt.toISOString(),
+    };
   }
 }

@@ -307,15 +307,16 @@ model RfqItemMatch {
 }
 
 model BackgroundJob {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   type         String
-  status       String   @default("pending")
-  payload      String   @default("{}")
-  attempts     Int      @default(0)
-  maxAttempts  Int      @default(3)
+  status       String    @default("pending")
+  payload      String    @default("{}")
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(3)
   errorMessage String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  nextRunAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model RefreshToken {

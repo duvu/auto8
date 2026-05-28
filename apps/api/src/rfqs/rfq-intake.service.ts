@@ -29,6 +29,7 @@ const VALID_PIPELINE_STATUSES = [
   "needs_review",
   "ready_for_quote",
   "quote_draft_created",
+  "quote_submitted",
   "approved",
   "sent",
   "closed",

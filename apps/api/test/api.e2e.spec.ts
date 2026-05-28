@@ -1135,4 +1135,10 @@ describe("auto8 RFQ workflow API", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("GET /quotes/:quoteId/email returns 401 without auth token", async () => {
+    const res = await request(app.getHttpServer())
+      .get("/api/quotes/nonexistent-quote-id/email");
+    expect(res.status).toBe(401);
+  });
 });

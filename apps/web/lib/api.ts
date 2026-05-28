@@ -140,6 +140,13 @@ export function getExtractedItems(rfqId: string) {
   return request<RfqExtractedItemView[]>(`/rfqs/${rfqId}/extracted-items`);
 }
 
+export function updateExtractedItem(rfqId: string, itemId: string, body: { description?: string; partNumber?: string; quantity?: number; unit?: string }) {
+  return request<RfqExtractedItemView>(`/rfqs/${rfqId}/extracted-items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
 export function getExtractedCustomer(rfqId: string) {
   return request<RfqExtractedCustomerView | null>(`/rfqs/${rfqId}/extracted-customer`);
 }

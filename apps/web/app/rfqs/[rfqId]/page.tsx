@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
 import type { GenerateQuoteResult, QuoteLineItemInput, RfqDetailView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
+import { calcQuoteTotals } from "@auto8/shared";
 
 import { WorkspaceShell } from "../../../components/workspace-shell";
 import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
@@ -73,10 +74,11 @@ export default function RfqDetailPage() {
 
   const quoteLocked = detail?.quote?.status === "pending_approval" || detail?.quote?.status === "approved";
   const canApprove = detail?.quote?.status === "pending_approval" && authUser?.role === "sales_approver";
-  const quoteTotal = useMemo(
-    () => draft.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
-    [draft.lineItems]
+  const quoteTotals = useMemo(
+    () => calcQuoteTotals(draft.lineItems, draft.discount ?? 0, draft.tax ? draft.tax / 100 : 0),
+    [draft.lineItems, draft.discount, draft.tax]
   );
+  const quoteTotal = quoteTotals.grandTotal;
 
   function updateDraftField<K extends keyof SaveQuoteInput>(key: K, value: SaveQuoteInput[K]) {
     setDraft((current) => ({
@@ -312,7 +314,7 @@ export default function RfqDetailPage() {
         </aside>
       </section>
 
-      <ExtractedItemsPanel items={extractedItems} />
+      <ExtractedItemsPanel rfqId={rfqId} items={extractedItems} />
 
       <section className="panel">
         <div className="stack">
@@ -403,7 +405,7 @@ export default function RfqDetailPage() {
             className="button"
             disabled={working || quoteLocked}
             type="button"
-            onClick={() => void runAction(() => saveDraftQuote(rfqId, draft), "Draft quote saved.")}
+            onClick={() => void runAction(() => saveDraftQuote(rfqId, { ...draft, grandTotal: quoteTotals.grandTotal }), "Draft quote saved.")}
           >
             {working ? "Working..." : detail.quote ? "Update draft" : "Create draft"}
           </button>

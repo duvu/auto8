@@ -323,6 +323,7 @@ export interface BackgroundJobView {
   attempts: number;
   maxAttempts: number;
   errorMessage: string | null;
+  nextRunAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -402,3 +403,5 @@ export interface UpdateConnectorInput {
   isEnabled?: boolean;
   credentials?: Record<string, string>;
 }
+
+export * from "./quote-calc";

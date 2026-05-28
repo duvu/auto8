@@ -7,6 +7,7 @@ import type { ConnectorTestResult, ConnectorView } from "@auto8/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateConnectorDto } from "./dto/create-connector.dto";
 import type { UpdateConnectorDto } from "./dto/update-connector.dto";
+import { encrypt, decrypt, isEncrypted } from "./crypto.util";
 
 @Injectable()
 export class ConnectorRegistryService implements OnModuleInit {
@@ -24,6 +25,51 @@ export class ConnectorRegistryService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     await this.bootstrapGmail();
     await this.bootstrapSlack();
+    await this.bootstrapReEncrypt();
+  }
+
+  private getEncryptionKey(): string | undefined {
+    return this.config.get<string>("CREDENTIALS_ENCRYPTION_KEY")?.trim() || undefined;
+  }
+
+  private encryptCredentials(credentialsJson: string): string {
+    const key = this.getEncryptionKey();
+    if (!key) return credentialsJson;
+    if (isEncrypted(credentialsJson)) return credentialsJson; // already encrypted
+    try {
+      return encrypt(credentialsJson, key);
+    } catch (e) {
+      this.logger.error("Failed to encrypt credentials", e);
+      return credentialsJson;
+    }
+  }
+
+  private decryptCredentials(credentialsJson: string): string {
+    const key = this.getEncryptionKey();
+    if (!key || !isEncrypted(credentialsJson)) return credentialsJson;
+    try {
+      return decrypt(credentialsJson, key);
+    } catch (e) {
+      this.logger.error("Failed to decrypt credentials", e);
+      return credentialsJson;
+    }
+  }
+
+  private async bootstrapReEncrypt(): Promise<void> {
+    const key = this.getEncryptionKey();
+    if (!key) return; // no key — nothing to re-encrypt
+
+    const connectors = await this.prisma.connector.findMany();
+    for (const connector of connectors) {
+      if (!isEncrypted(connector.credentialsJson)) {
+        const encryptedJson = this.encryptCredentials(connector.credentialsJson);
+        await this.prisma.connector.update({
+          where: { id: connector.id },
+          data: { credentialsJson: encryptedJson },
+        });
+        this.logger.log(`Re-encrypted credentials for connector ${connector.id}`);
+      }
+    }
   }
 
   private async bootstrapGmail(): Promise<void> {
@@ -35,17 +81,19 @@ export class ConnectorRegistryService implements OnModuleInit {
     const existing = await this.prisma.connector.findFirst({ where: { type: "gmail" } });
     if (existing) return;
 
+    const credentialsJson = this.encryptCredentials(JSON.stringify({
+      clientId,
+      clientSecret,
+      refreshToken,
+      searchQuery: this.config.get<string>("GMAIL_SEARCH_QUERY") ?? "is:unread",
+      maxResults: String(this.config.get<number>("GMAIL_MAX_RESULTS") ?? 20),
+    }));
+
     await this.prisma.connector.create({
       data: {
         type: "gmail",
         label: "Default Gmail",
-        credentialsJson: JSON.stringify({
-          clientId,
-          clientSecret,
-          refreshToken,
-          searchQuery: this.config.get<string>("GMAIL_SEARCH_QUERY") ?? "is:unread",
-          maxResults: String(this.config.get<number>("GMAIL_MAX_RESULTS") ?? 20),
-        }),
+        credentialsJson,
       },
     });
     this.logger.log("Bootstrapped Gmail connector from env vars");
@@ -59,11 +107,13 @@ export class ConnectorRegistryService implements OnModuleInit {
     const existing = await this.prisma.connector.findFirst({ where: { type: "slack" } });
     if (existing) return;
 
+    const credentialsJson = this.encryptCredentials(JSON.stringify({ signingSecret, botToken }));
+
     await this.prisma.connector.create({
       data: {
         type: "slack",
         label: "Default Slack",
-        credentialsJson: JSON.stringify({ signingSecret, botToken }),
+        credentialsJson,
       },
     });
     this.logger.log("Bootstrapped Slack connector from env vars");
@@ -73,31 +123,40 @@ export class ConnectorRegistryService implements OnModuleInit {
     const connectors = await this.prisma.connector.findMany({
       orderBy: { createdAt: "asc" },
     });
-    return connectors.map(this.serialize);
+    return connectors.map((c) => this.serialize(c));
   }
 
   async findAllEnabled(type?: string): Promise<Connector[]> {
-    return this.prisma.connector.findMany({
+    const connectors = await this.prisma.connector.findMany({
       where: {
         isEnabled: true,
         ...(type ? { type } : {}),
       },
       orderBy: { createdAt: "asc" },
     });
+    // Decrypt credentials for consumers (e.g., GmailConnectorService)
+    return connectors.map((c) => ({
+      ...c,
+      credentialsJson: this.decryptCredentials(c.credentialsJson),
+    }));
   }
 
   async findOne(id: string): Promise<Connector> {
     const connector = await this.prisma.connector.findUnique({ where: { id } });
     if (!connector) throw new NotFoundException(`Connector ${id} not found`);
-    return connector;
+    return {
+      ...connector,
+      credentialsJson: this.decryptCredentials(connector.credentialsJson),
+    };
   }
 
   async create(dto: CreateConnectorDto): Promise<ConnectorView> {
+    const credentialsJson = this.encryptCredentials(JSON.stringify(dto.credentials));
     const connector = await this.prisma.connector.create({
       data: {
         type: dto.type,
         label: dto.label,
-        credentialsJson: JSON.stringify(dto.credentials),
+        credentialsJson,
       },
     });
     return this.serialize(connector);
@@ -109,7 +168,7 @@ export class ConnectorRegistryService implements OnModuleInit {
     if (dto.label !== undefined) updateData["label"] = dto.label;
     if (dto.isEnabled !== undefined) updateData["isEnabled"] = dto.isEnabled;
     if (dto.credentials !== undefined) {
-      updateData["credentialsJson"] = JSON.stringify(dto.credentials);
+      updateData["credentialsJson"] = this.encryptCredentials(JSON.stringify(dto.credentials));
       updateData["failureCount"] = 0;
       updateData["lastError"] = null;
     }

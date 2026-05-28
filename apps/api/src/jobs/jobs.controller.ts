@@ -48,6 +48,7 @@ export class JobsController {
         attempts: j.attempts,
         maxAttempts: j.maxAttempts,
         errorMessage: j.errorMessage,
+        nextRunAt: (j as { nextRunAt?: Date | null }).nextRunAt?.toISOString() ?? null,
         createdAt: j.createdAt.toISOString(),
         updatedAt: j.updatedAt.toISOString(),
       })),
@@ -74,6 +75,7 @@ export class JobsController {
       attempts: job.attempts,
       maxAttempts: job.maxAttempts,
       errorMessage: job.errorMessage,
+      nextRunAt: (job as { nextRunAt?: Date | null }).nextRunAt?.toISOString() ?? null,
       createdAt: job.createdAt.toISOString(),
       updatedAt: job.updatedAt.toISOString(),
     };

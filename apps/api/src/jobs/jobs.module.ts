@@ -6,9 +6,10 @@ import { RbacModule } from "../rbac/rbac.module";
 import { AttachmentsModule } from "../attachments/attachments.module";
 import { MatchingModule } from "../matching/matching.module";
 import { SheetExportModule } from "../sheet-export/sheet-export.module";
+import { AuditModule } from "../audit/audit.module";
 
 @Module({
-  imports: [PrismaModule, RbacModule, AttachmentsModule, MatchingModule, SheetExportModule],
+  imports: [PrismaModule, RbacModule, AttachmentsModule, MatchingModule, SheetExportModule, AuditModule],
   controllers: [JobsController],
   providers: [JobsService],
   exports: [JobsService],

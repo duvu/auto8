@@ -218,7 +218,7 @@ export class QuoteEmailService {
   private getTransport(): Transporter {
     if (this.transport) return this.transport;
 
-    const smtpSecure = this.config.get<boolean>("SMTP_SECURE", true);
+    const smtpSecure = this.config.get<string>("SMTP_SECURE") !== "false";
 
     this.transport = nodemailer.createTransport({
       host: this.config.get<string>("SMTP_HOST"),
@@ -245,18 +245,18 @@ export class QuoteEmailService {
       customerName: string;
       customerCompany: string;
       notes: string | null;
-      lineItems: Array<{ description: string; quantity: number; unitPrice: number }>;
+      lineItems: Array<{ description: string; quantity: number; unitPrice: number; subtotal: number }>;
     },
     rfqIntake: { subject: string }
   ): string {
     const lineItemsText = quote.lineItems
       .map(
         (item, i) =>
-          `${i + 1}. ${item.description} — Qty: ${item.quantity}, Unit Price: $${item.unitPrice.toFixed(2)}, Subtotal: $${(item.quantity * item.unitPrice).toFixed(2)}`
+          `${i + 1}. ${item.description} — Qty: ${item.quantity}, Unit Price: $${item.unitPrice.toFixed(2)}, Subtotal: $${item.subtotal.toFixed(2)}`
       )
       .join("\n");
 
-    const total = quote.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const total = quote.lineItems.reduce((sum, item) => sum + item.subtotal, 0);
 
     return [
       `Dear ${quote.customerName},`,

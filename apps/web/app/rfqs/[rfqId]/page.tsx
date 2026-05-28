@@ -4,22 +4,22 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
-import type { GenerateQuoteResult, QuoteLineItemInput, RfqDetailView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
+import type { GenerateQuoteResult, QuoteLineItemInput, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
 import { calcQuoteTotals } from "@auto8/shared";
 
 import { WorkspaceShell } from "../../../components/workspace-shell";
 import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
 import { MatchReviewPanel } from "../../../components/MatchReviewPanel";
 import { QuoteEmailTab } from "../../../components/QuoteEmailTab";
-import { approveQuote, fetchRfqDetail, generateQuote, getExtractedItems, saveDraftQuote, submitQuote } from "../../../lib/api";
+import { approveQuote, fetchRfqDetail, generateQuote, getExtractedCustomer, getExtractedItems, saveDraftQuote, submitQuote } from "../../../lib/api";
 import { getAuthUser } from "../../../lib/auth";
 import type { AuthUser } from "../../../lib/auth";
 import { formatState } from "../../../lib/format";
 
-function buildDraft(detail: RfqDetailView | null): SaveQuoteInput {
+function buildDraft(detail: RfqDetailView | null, extractedCustomer?: RfqExtractedCustomerView | null): SaveQuoteInput {
   return {
-    customerName: detail?.quote?.customerName ?? detail?.senderName ?? detail?.senderEmail ?? detail?.sourceLabel ?? "",
-    customerCompany: detail?.quote?.customerCompany ?? "",
+    customerName: detail?.quote?.customerName ?? extractedCustomer?.customerContact ?? detail?.senderName ?? detail?.senderEmail ?? detail?.sourceLabel ?? "",
+    customerCompany: detail?.quote?.customerCompany ?? extractedCustomer?.customerCompany ?? "",
     notes: detail?.quote?.notes ?? "",
     lineItems:
       detail?.quote?.lineItems.map((item) => ({
@@ -43,6 +43,7 @@ export default function RfqDetailPage() {
   const rfqId = String(params.rfqId);
   const [detail, setDetail] = useState<RfqDetailView | null>(null);
   const [extractedItems, setExtractedItems] = useState<RfqExtractedItemView[]>([]);
+  const [extractedCustomer, setExtractedCustomer] = useState<RfqExtractedCustomerView | null>(null);
   const [draft, setDraft] = useState<SaveQuoteInput>(buildDraft(null));
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -60,10 +61,15 @@ export default function RfqDetailPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [nextDetail, nextExtractedItems] = await Promise.all([fetchRfqDetail(rfqId), getExtractedItems(rfqId)]);
+        const [nextDetail, nextExtractedItems, nextExtractedCustomer] = await Promise.all([
+          fetchRfqDetail(rfqId),
+          getExtractedItems(rfqId),
+          getExtractedCustomer(rfqId),
+        ]);
         setDetail(nextDetail);
         setExtractedItems(nextExtractedItems);
-        setDraft(buildDraft(nextDetail));
+        setExtractedCustomer(nextExtractedCustomer);
+        setDraft(buildDraft(nextDetail, nextExtractedCustomer));
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load RFQ detail.");
       } finally {
@@ -293,6 +299,29 @@ export default function RfqDetailPage() {
             <div className="meta">Body</div>
             <div className="quote-box">{detail.body}</div>
           </div>
+
+          {extractedCustomer && (
+            <div>
+              <div className="meta" style={{ marginBottom: 4 }}>AI-Extracted Customer Info</div>
+              <div className="field-grid" style={{ background: "var(--surface)", padding: "10px 14px", borderRadius: 6, fontSize: 13 }}>
+                {extractedCustomer.customerCompany && (
+                  <div><span className="meta">Company: </span>{extractedCustomer.customerCompany}</div>
+                )}
+                {extractedCustomer.customerContact && (
+                  <div><span className="meta">Contact: </span>{extractedCustomer.customerContact}</div>
+                )}
+                {extractedCustomer.customerEmail && (
+                  <div><span className="meta">Email: </span>{extractedCustomer.customerEmail}</div>
+                )}
+                {extractedCustomer.deliveryLocation && (
+                  <div><span className="meta">Delivery: </span>{extractedCustomer.deliveryLocation}</div>
+                )}
+                {extractedCustomer.requestedDeadline && (
+                  <div><span className="meta">Deadline: </span>{extractedCustomer.requestedDeadline}</div>
+                )}
+              </div>
+            </div>
+          )}
         </article>
 
         <aside className="panel">

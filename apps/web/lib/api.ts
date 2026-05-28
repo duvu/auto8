@@ -47,10 +47,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return parseJson<T>(response);
 }
 
-export function fetchUsers() {
-  return request<PaginatedResponse<UserView>>("/users");
-}
-
 export function fetchRfqs(isRfq?: boolean, pipelineStatus?: string) {
   const qs = new URLSearchParams();
   if (isRfq !== undefined) qs.set("isRfq", String(isRfq));

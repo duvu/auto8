@@ -171,8 +171,8 @@ export class ItemMatchingService {
       where: { id: matchId },
       data: {
         status: action === "accept" ? "accepted" : "overridden",
-        overrideDescription: action === "override" ? (overrideDescription ?? null) : undefined,
-        overrideUnitPrice: action === "override" ? (overrideUnitPrice ?? null) : undefined,
+        overrideDescription: action === "override" ? (overrideDescription ?? null) : null,
+        overrideUnitPrice: action === "override" ? (overrideUnitPrice ?? null) : null,
       },
       include: { product: true },
     });

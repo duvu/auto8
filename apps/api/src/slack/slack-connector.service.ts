@@ -79,7 +79,7 @@ export class SlackConnectorService implements ConnectorService {
       connectorId: connector?.id,
     };
 
-    const detail = await this.rfqIntakeService.createRfqFromIntake(normalized);
+    const detail = await this.rfqIntakeService.classifyAndIntake(normalized);
 
     // Send confirmation to channel
     const botToken = connector
@@ -204,7 +204,7 @@ export class SlackConnectorService implements ConnectorService {
       slackMessageId: input.messageId?.trim() || null
     };
 
-      const detail = await this.rfqIntakeService.createRfqFromIntake(normalized);
+      const detail = await this.rfqIntakeService.classifyAndIntake(normalized);
       await this.sendConfirmationWithToken(input.channelId.trim(), detail.reference, input.subject.trim(), this.config.get<string>("SLACK_BOT_TOKEN")?.trim());
 
     return detail;

@@ -48,6 +48,9 @@ export class QuoteWorkflowService {
 
     if (!rfq.quote) {
       await this.prisma.$transaction(async (tx) => {
+        const lineItemsData = input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
+        const computedGrandTotal = this.computeGrandTotal(lineItemsData, input.discount ?? 0, input.tax ?? 0);
+
         const quote = await tx.quote.create({
           data: {
             rfqId,
@@ -57,12 +60,12 @@ export class QuoteWorkflowService {
             createdById: actorId,
             ...(input.discount !== undefined && { discount: input.discount }),
             ...(input.tax !== undefined && { tax: input.tax }),
-            ...(input.grandTotal !== undefined && { grandTotal: input.grandTotal }),
+            grandTotal: computedGrandTotal,
             ...(input.paymentTerms && { paymentTerms: input.paymentTerms }),
             ...(input.deliveryTerms && { deliveryTerms: input.deliveryTerms }),
             ...(input.validityDays !== undefined && { validityDays: input.validityDays }),
             lineItems: {
-              create: input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index)),
+              create: lineItemsData,
             },
           },
         });
@@ -79,6 +82,9 @@ export class QuoteWorkflowService {
       const existingQuoteId = rfq.quote.id;
 
       await this.prisma.$transaction(async (tx) => {
+        const lineItemsData = input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
+        const computedGrandTotal = this.computeGrandTotal(lineItemsData, input.discount ?? 0, input.tax ?? 0);
+
         await tx.quote.update({
           where: { id: existingQuoteId },
           data: {
@@ -87,13 +93,13 @@ export class QuoteWorkflowService {
             notes: this.optionalString(input.notes),
             ...(input.discount !== undefined && { discount: input.discount }),
             ...(input.tax !== undefined && { tax: input.tax }),
-            ...(input.grandTotal !== undefined && { grandTotal: input.grandTotal }),
+            grandTotal: computedGrandTotal,
             ...(input.paymentTerms !== undefined && { paymentTerms: input.paymentTerms }),
             ...(input.deliveryTerms !== undefined && { deliveryTerms: input.deliveryTerms }),
             ...(input.validityDays !== undefined && { validityDays: input.validityDays }),
             lineItems: {
               deleteMany: {},
-              create: input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index)),
+              create: lineItemsData,
             },
           },
         });
@@ -260,16 +266,18 @@ export class QuoteWorkflowService {
       throw new BadRequestException(`Line item ${index + 1} requires a positive integer quantity.`);
     }
 
-    if (!Number.isInteger(item.unitPrice) || item.unitPrice < 0) {
-      throw new BadRequestException(`Line item ${index + 1} requires a non-negative integer unit price.`);
+    if (typeof item.unitPrice !== 'number' || item.unitPrice < 0) {
+      throw new BadRequestException(`Line item ${index + 1} requires a non-negative unit price.`);
     }
   }
 
   private serializeLineItemCreate(item: QuoteLineItemInput, index: number) {
+    const subtotal = Math.round(item.unitPrice * item.quantity * (1 - (item.discount ?? 0) / 100) * 100) / 100;
     return {
       description: item.description.trim(),
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      subtotal,
       sortOrder: index,
       ...(item.discount !== undefined && { discount: item.discount }),
       ...(item.productId !== undefined && { productId: item.productId }),
@@ -300,7 +308,7 @@ export class QuoteWorkflowService {
         return {
           description,
           quantity: item.quantity ?? 1,
-          unitPrice: Math.round(unitPrice * 100), // convert to cents
+          unitPrice: Math.round(unitPrice * 100) / 100, // keep as dollars, round to 2dp
           productId,
         };
       });
@@ -322,6 +330,18 @@ export class QuoteWorkflowService {
     };
 
     return this.saveDraft(rfqId, input, actorId);
+  }
+
+  private computeGrandTotal(
+    lineItems: Array<{ subtotal: number }>,
+    orderDiscountPct: number,
+    taxPct: number,
+  ): number {
+    const subtotal = lineItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const discountAmount = Math.round(subtotal * (orderDiscountPct / 100) * 100) / 100;
+    const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
+    const taxAmount = Math.round(afterDiscount * (taxPct / 100) * 100) / 100;
+    return Math.round((afterDiscount + taxAmount) * 100) / 100;
   }
 
   private optionalString(value: string | null | undefined) {

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import type { RfqItemMatchView } from "@auto8/shared";
+import type { RfqExtractedItemView, RfqItemMatchView, RfqMatchGroupView } from "@auto8/shared";
 
 function serializeMatch(match: {
   id: string;
@@ -118,7 +118,7 @@ export class ItemMatchingService {
     }
   }
 
-  async getMatchesForRfq(rfqId: string): Promise<{ extractedItemId: string; description: string; matches: RfqItemMatchView[] }[]> {
+  async getMatchesForRfq(rfqId: string): Promise<RfqMatchGroupView[]> {
     const rfq = await this.prisma.rfq.findUnique({
       where: { id: rfqId },
       include: {
@@ -135,11 +135,25 @@ export class ItemMatchingService {
 
     if (!rfq) throw new NotFoundException("RFQ not found.");
 
-    return (rfq.extractedItems ?? []).map((item) => ({
-      extractedItemId: item.id,
-      description: item.description,
-      matches: (item.matches ?? []).map(serializeMatch),
-    }));
+    return (rfq.extractedItems ?? []).map((item) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const i = item as any;
+      const extractedItem: RfqExtractedItemView = {
+        id: i.id,
+        rfqId,
+        partNumber: i.partNumber ?? null,
+        description: i.description ?? "",
+        quantity: i.quantity ?? null,
+        unit: i.unit ?? null,
+        confidence: i.confidence ?? null,
+        confidenceReason: i.confidenceReason ?? null,
+        createdAt: (i.createdAt as Date).toISOString(),
+      };
+      return {
+        extractedItem,
+        matches: (i.matches ?? []).map(serializeMatch),
+      };
+    });
   }
 
   async updateMatch(

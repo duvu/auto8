@@ -35,6 +35,7 @@ export interface SlackRfqIntakeInput {
 export interface QuoteLineItemInput {
   description: string;
   quantity: number;
+  /** Unit price in dollars (Float, e.g. 10.99) */
   unitPrice: number;
   discount?: number;
   productId?: string;
@@ -72,9 +73,10 @@ export interface QuoteLineItemView {
   id: string;
   description: string;
   quantity: number;
+  /** Unit price in dollars (Float, e.g. 10.99) */
   unitPrice: number;
   discount: number;
-  subtotal: number | null;
+  subtotal: number;
   productId: string | null;
 }
 
@@ -86,6 +88,7 @@ export interface QuoteView {
   discount: number;
   tax: number;
   grandTotal: number | null;
+  currency: string;
   paymentTerms: string | null;
   deliveryTerms: string | null;
   validityDays: number | null;
@@ -193,7 +196,6 @@ export interface AuditLogQueryParams {
   actorId?: string;
   from?: string;
   to?: string;
-  limit?: number;
 }
 
 export interface IngestionRunView {
@@ -313,6 +315,11 @@ export interface RfqItemMatchView {
   overrideDescription: string | null;
   overrideUnitPrice: number | null;
   createdAt: string;
+}
+
+export interface RfqMatchGroupView {
+  extractedItem: RfqExtractedItemView;
+  matches: RfqItemMatchView[];
 }
 
 export interface BackgroundJobView {

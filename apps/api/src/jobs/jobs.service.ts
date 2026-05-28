@@ -1,12 +1,13 @@
-import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
+import { forwardRef, Inject, Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { AttachmentService } from "../attachments/attachment.service";
 import { ItemMatchingService } from "../matching/item-matching.service";
 import { SheetExportService } from "../sheet-export/sheet-export.service";
 import { AuditService } from "../audit/audit.service";
+import { RfqExtractionService } from "../rfqs/rfq-extraction.service";
 
-export type JobType = "attachment_parse" | "item_match" | "sheet_export";
+export type JobType = "attachment_parse" | "item_match" | "sheet_export" | "rfq_extract";
 
 @Injectable()
 export class JobsService implements OnModuleInit {
@@ -19,13 +20,33 @@ export class JobsService implements OnModuleInit {
     @Optional() private readonly itemMatchingService?: ItemMatchingService,
     @Optional() private readonly sheetExportService?: SheetExportService,
     @Optional() private readonly auditService?: AuditService,
+    @Optional() @Inject(forwardRef(() => RfqExtractionService)) private readonly rfqExtractionService?: RfqExtractionService,
   ) {}
 
   onModuleInit(): void {
     // Register built-in handlers
     this.registerHandler("attachment_parse", async (payload) => {
       const rfqAttachmentId = payload["rfqAttachmentId"] as string;
+      // Load attachment to get rfqIntakeId before parsing
+      const attachment = await this.prisma.rfqAttachment.findUnique({
+        where: { id: rfqAttachmentId },
+        select: { rfqIntakeId: true },
+      });
       await this.attachmentService.parseAttachment(rfqAttachmentId);
+      // After parse (success or failure), try to aggregate and trigger extraction
+      if (attachment) {
+        const aggregated = await this.attachmentService.aggregateAttachmentContent(attachment.rfqIntakeId);
+        if (aggregated) {
+          // All attachments settled — find the RFQ and enqueue rfq_extract
+          const rfq = await this.prisma.rfq.findFirst({
+            where: { intake: { id: attachment.rfqIntakeId } },
+            select: { id: true },
+          });
+          if (rfq) {
+            await this.enqueue("rfq_extract", { rfqId: rfq.id });
+          }
+        }
+      }
     });
 
     if (this.itemMatchingService) {
@@ -39,6 +60,13 @@ export class JobsService implements OnModuleInit {
       this.registerHandler("sheet_export", async (payload) => {
         const quoteId = payload["quoteId"] as string;
         await this.sheetExportService!.exportQuote(quoteId);
+      });
+    }
+
+    if (this.rfqExtractionService) {
+      this.registerHandler("rfq_extract", async (payload) => {
+        const rfqId = payload["rfqId"] as string;
+        await this.rfqExtractionService!.extractAsync(rfqId);
       });
     }
   }

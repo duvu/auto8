@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 
 import { AuditModule } from "../audit/audit.module";
 import { JobsModule } from "../jobs/jobs.module";
@@ -15,9 +15,9 @@ import { QuoteWorkflowService } from "./quote-workflow.service";
 import { RfqsController } from "./rfqs.controller";
 
 @Module({
-  imports: [AuditModule, QuoteEmailModule, LlmModule, RbacModule, JobsModule, MatchingModule, PrismaModule],
+  imports: [AuditModule, QuoteEmailModule, LlmModule, RbacModule, forwardRef(() => JobsModule), MatchingModule, PrismaModule],
   controllers: [RfqsController],
   providers: [RfqIntakeService, QuoteWorkflowService, RfqExtractionService, RfqClassificationService, AiQuoteGenerationService],
-  exports: [RfqIntakeService, QuoteWorkflowService],
+  exports: [RfqIntakeService, QuoteWorkflowService, RfqExtractionService],
 })
 export class RfqsModule {}

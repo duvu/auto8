@@ -7,6 +7,7 @@ import { getJobs } from "../../lib/api";
 export default function JobsPage() {
   const [jobs, setJobs] = useState<BackgroundJobView[]>([]);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -24,6 +25,7 @@ export default function JobsPage() {
       });
       setJobs(res.data);
       setTotal(res.meta.total);
+      setHasMore(res.meta.hasMore);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load jobs");
     } finally {
@@ -75,6 +77,7 @@ export default function JobsPage() {
           <option value="attachment_parse">attachment_parse</option>
           <option value="item_match">item_match</option>
           <option value="sheet_export">sheet_export</option>
+          <option value="rfq_extract">rfq_extract</option>
         </select>
       </div>
 
@@ -139,7 +142,7 @@ export default function JobsPage() {
               </button>
             )}
             <span>Page {page}</span>
-            {jobs.length === 20 && (
+            {hasMore && (
               <button onClick={() => setPage(page + 1)} className="text-blue-600 hover:underline">
                 Next
               </button>

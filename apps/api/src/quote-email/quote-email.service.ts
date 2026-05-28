@@ -252,7 +252,7 @@ export class QuoteEmailService {
     const lineItemsText = quote.lineItems
       .map(
         (item, i) =>
-          `${i + 1}. ${item.description} — Qty: ${item.quantity}, Unit Price: $${(item.unitPrice / 100).toFixed(2)}, Subtotal: $${((item.quantity * item.unitPrice) / 100).toFixed(2)}`
+          `${i + 1}. ${item.description} — Qty: ${item.quantity}, Unit Price: $${item.unitPrice.toFixed(2)}, Subtotal: $${(item.quantity * item.unitPrice).toFixed(2)}`
       )
       .join("\n");
 
@@ -268,7 +268,7 @@ export class QuoteEmailService {
       "--- Line Items ---",
       lineItemsText,
       "",
-      `Total: $${(total / 100).toFixed(2)}`,
+      `Total: $${total.toFixed(2)}`,
       "",
       ...(quote.notes ? [`Notes: ${quote.notes}`, ""] : []),
       "Please let us know if you have any questions.",

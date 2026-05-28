@@ -76,19 +76,31 @@ export class RfqIntakeService {
   async intakeEmail(input: IntakeEmailInput): Promise<RfqDetailView> {
     this.validateEmailIntake(input);
 
-    const subject = input.subject.trim();
-    const body = input.body.trim();
-    const classification = await this.rfqClassificationService.classify(subject, body);
-
-    return this.createRfqFromIntake({
+    return this.classifyAndIntake({
       sourceType: "email",
       sourceLabel: "Email",
       senderEmail: input.fromEmail.trim().toLowerCase(),
       senderName: this.optionalString(input.fromName),
-      subject,
-      body,
+      subject: input.subject.trim(),
+      body: input.body.trim(),
       receivedAt: input.receivedAt,
       rawPayload: JSON.stringify(input),
+    });
+  }
+
+  /**
+   * Classifies a normalized intake and then persists it via createRfqFromIntake().
+   * This is the single shared entry point for all intake sources (email, Gmail, Slack).
+   * It ensures classification is applied uniformly before any record is created.
+   */
+  async classifyAndIntake(input: NormalizedRfqIntake): Promise<RfqDetailView> {
+    const classification = await this.rfqClassificationService.classify(
+      input.subject ?? "",
+      input.body ?? "",
+    );
+
+    return this.createRfqFromIntake({
+      ...input,
       isRfq: classification.isRfq,
       classificationScore: classification.score,
       classificationReason: classification.reason,
@@ -238,7 +250,8 @@ export class RfqIntakeService {
           }
         }
 
-        this.rfqExtractionService.extractAsync(rfq.id).catch((err: unknown) => this.logger.error(err));
+        // Enqueue extraction as a background job (deferred until all attachments settle)
+        this.jobsService.enqueue("rfq_extract", { rfqId: rfq.id }).catch((err: unknown) => this.logger.error("Failed to enqueue rfq_extract job", err));
         return detail;
       } catch (err) {
         if (err instanceof PrismaClientKnownRequestError && err.code === "P2002" && attempt < MAX_RETRIES - 1) {
@@ -333,7 +346,8 @@ export class RfqIntakeService {
             approvedById: rfq.quote.approvedById,
             discount: rfq.quote.discount,
             tax: rfq.quote.tax,
-            grandTotal: rfq.quote.grandTotal,
+             grandTotal: rfq.quote.grandTotal,
+            currency: rfq.quote.currency,
             paymentTerms: rfq.quote.paymentTerms,
             deliveryTerms: rfq.quote.deliveryTerms,
             validityDays: rfq.quote.validityDays,

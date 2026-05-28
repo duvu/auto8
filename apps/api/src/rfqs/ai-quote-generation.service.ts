@@ -45,7 +45,7 @@ Return a JSON object matching this exact structure:
     {
       "description": string,     // item description
       "quantity": number,        // positive integer quantity
-      "unitPrice": number | null // unit price in cents (integer), or null if not inferable from RFQ
+      "unitPrice": number | null // unit price in dollars (Float, e.g. 12.50), or null if not inferable from RFQ
     }
   ]
 }
@@ -87,8 +87,8 @@ ${rfq.intake.body}${extractedItemsJson}`;
       quantity: typeof item["quantity"] === "number" && Number.isInteger(item["quantity"]) && item["quantity"] > 0
         ? item["quantity"]
         : 1,
-      unitPrice: typeof item["unitPrice"] === "number" && Number.isInteger(item["unitPrice"]) && item["unitPrice"] >= 0
-        ? item["unitPrice"]
+      unitPrice: typeof item["unitPrice"] === "number" && item["unitPrice"] >= 0
+        ? Math.round(item["unitPrice"] * 100) / 100
         : 0,
     }));
 

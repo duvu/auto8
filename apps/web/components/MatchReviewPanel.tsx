@@ -1,13 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { RfqExtractedItemView, RfqItemMatchView } from "@auto8/shared";
+import type { RfqMatchGroupView } from "@auto8/shared";
 import { getMatches, updateMatch, createQuoteFromMatches } from "../lib/api";
-
-interface MatchGroup {
-  extractedItem: RfqExtractedItemView;
-  matches: RfqItemMatchView[];
-}
 
 interface MatchReviewPanelProps {
   rfqId: string;
@@ -15,7 +10,7 @@ interface MatchReviewPanelProps {
 }
 
 export function MatchReviewPanel({ rfqId, onQuoteCreated }: MatchReviewPanelProps) {
-  const [groups, setGroups] = useState<MatchGroup[]>([]);
+  const [groups, setGroups] = useState<RfqMatchGroupView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);

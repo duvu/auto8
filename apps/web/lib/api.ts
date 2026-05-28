@@ -1,4 +1,4 @@
-import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, ConnectorTestResult, ConnectorView, CreateConnectorInput, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, PaginatedResponse, ProductView, QuoteEmailDraftView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, SaveQuoteInput, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UserView, CatalogueUploadResult } from "@auto8/shared";
+import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, ConnectorTestResult, ConnectorView, CreateConnectorInput, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, PaginatedResponse, ProductView, QuoteEmailDraftView, QuoteEmailSendView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, RfqMatchGroupView, SaveQuoteInput, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UserView, CatalogueUploadResult } from "@auto8/shared";
 
 import { logout } from "./auth";
 
@@ -104,7 +104,7 @@ export function updateQuoteEmail(quoteId: string, input: UpdateQuoteEmailInput) 
 }
 
 export function sendQuoteEmail(quoteId: string) {
-  return request<{ id: string; status: string; sentAt: string }>(`/quotes/${quoteId}/email/send`, {
+  return request<QuoteEmailSendView>(`/quotes/${quoteId}/email/send`, {
     method: "POST"
   });
 }
@@ -153,7 +153,7 @@ export function getExtractedCustomer(rfqId: string) {
 
 // Matches
 export function getMatches(rfqId: string) {
-  return request<Array<{ extractedItem: RfqExtractedItemView; matches: RfqItemMatchView[] }>>(`/rfqs/${rfqId}/matches`);
+  return request<RfqMatchGroupView[]>(`/rfqs/${rfqId}/matches`);
 }
 
 export function updateMatch(rfqId: string, matchId: string, action: "accept" | "override", overrides?: { overrideDescription?: string; overrideUnitPrice?: number }) {
@@ -180,7 +180,7 @@ export function updateUser(id: string, data: { name?: string; role?: string; pas
   return request<UserView>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
-export function deleteUser(id: string) {
+export function deactivateUser(id: string) {
   return request<UserView>(`/users/${id}`, { method: "DELETE" });
 }
 

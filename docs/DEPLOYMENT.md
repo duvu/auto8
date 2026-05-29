@@ -88,11 +88,17 @@ All variables for `apps/api`. Set these in your deployment platform's secret man
 | `SMTP_PORT` | no | `587` | SMTP port |
 | `SMTP_USER` | no | — | SMTP authentication username |
 | `SMTP_PASS` | no | — | SMTP authentication password |
+| `QUOTE_EMAIL_FROM` | no | — | Optional sender-address override for quote emails |
 | `SMTP_SECURE` | no | `true` | `true` = enforce TLS; `false` = allow plain/STARTTLS (dev only) |
 | `ATTACHMENT_STORAGE_PATH` | no | `./attachments` | Local directory for parsed attachment files |
 | `GOOGLE_SHEET_ID` | no | — | Google Sheets spreadsheet ID for quote export |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | no | — | JSON string of Google service account credentials |
 | `CONNECTOR_AUTO_DISABLE_THRESHOLD` | no | `5` | Consecutive failures before a connector is auto-disabled |
+| `CREDENTIALS_ENCRYPTION_KEY` | no | — | 64-hex-char AES-256-GCM key for encrypting DB-stored connector credentials |
+| `OUTLOOK_CLIENT_ID` | no | — | Outlook / Microsoft Graph client ID for env-var bootstrap |
+| `OUTLOOK_CLIENT_SECRET` | no | — | Outlook / Microsoft Graph client secret |
+| `OUTLOOK_REFRESH_TOKEN` | no | — | Outlook refresh token |
+| `OUTLOOK_TENANT_ID` | no | `common` | Outlook tenant ID or `common` |
 
 ---
 
@@ -110,7 +116,7 @@ typecheck  →  build  →  test
 |---|---|
 | `typecheck` | `npm run typecheck` — strict TypeScript check across all workspaces |
 | `build` | `npm run build` — compiles API and frontend |
-| `test` | `prisma db push --force-reset`, then `npm run test` — 48 unit + e2e tests against live PostgreSQL |
+| `test` | `prisma db push --force-reset`, then `npm run test` — 58 passing unit + e2e tests against live PostgreSQL |
 
 The `test` job spins up a `postgres:16` service container with:
 - `POSTGRES_DB=auto8_test`
@@ -136,7 +142,7 @@ npm start    # production server
 
 | Variable | Description |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | API base URL (e.g., `https://api.yourdomain.com`) — set if API is on a different domain |
+| `NEXT_PUBLIC_API_BASE_URL` | API base URL (e.g., `https://api.yourdomain.com`) — set if API is on a different domain |
 
 If the API and web app share the same domain (e.g., web at `/`, API at `/api`), no environment variable is needed as requests default to the same host.
 
@@ -153,7 +159,9 @@ Before deploying to a production environment:
 - [ ] **Set `DATABASE_URL`** to a managed PostgreSQL instance (not the docker-compose default)
 - [ ] **Run `prisma migrate deploy`** on first deployment (handled automatically in Docker CMD)
 - [ ] **Enable SMTP_SECURE=true** and point `SMTP_*` vars at a production mail relay
+- [ ] **Set `CREDENTIALS_ENCRYPTION_KEY`** before enabling DB-managed Gmail / Outlook / Slack connectors
 - [ ] **Restrict admin access** — ensure `admin@auto8.dev` password has been changed
 - [ ] **Set up HTTPS** — place the API and frontend behind a reverse proxy (nginx, Caddy, or a cloud load balancer) with TLS certificates
 - [ ] **Configure `ATTACHMENT_STORAGE_PATH`** to a persistent volume mount (not ephemeral container storage)
 - [ ] **Review `CONNECTOR_AUTO_DISABLE_THRESHOLD`** — lower value means more aggressive auto-disabling on errors
+- [ ] **Set `OUTLOOK_*` vars only if you want env-var bootstrap** — otherwise manage Outlook connectors entirely from the admin UI

@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────┐
 │  Browser                                         │
-│  Next.js 15 (App Router)  :3000                 │
+│  Next.js 16 (App Router)  :3000                 │
 │  apps/web                                        │
 └────────────────────┬────────────────────────────┘
                      │  HTTP (fetch, credentials: include)
@@ -28,6 +28,7 @@
 External services (all optional):
   OpenAI / Anthropic / Google Gemini / Ollama  ← LlmService
   Gmail API (OAuth)                            ← GmailConnectorService
+  Microsoft Graph API                          ← OutlookConnectorService
   Slack Events API                             ← SlackConnectorService
   SMTP server                                  ← QuoteEmailService
   Google Sheets API (service account)          ← SheetExportService
@@ -47,8 +48,9 @@ External services (all optional):
 | `QuotesModule` | Read-only quote endpoints (`GET /quotes/:id`) |
 | `QuoteEmailModule` | Quote email compose, edit, and send via SMTP |
 | `AuditModule` | Append-only audit event log |
-| `SchedulerModule` | Cron-based Gmail sync; iterates DB connectors first, falls back to env vars |
+| `SchedulerModule` | Cron-based Gmail and Outlook sync; iterates DB connectors first, with legacy env-var fallback for Gmail |
 | `GmailModule` | Gmail OAuth client; `sync()` supports per-connector credentials |
+| `OutlookModule` | Microsoft Graph connector; unread inbox polling via refresh-token OAuth |
 | `SlackModule` | Slack Events/Slash command receiver; `intakeSlack()` supports per-connector credentials |
 | `ConnectorRegistryModule` | DB-persisted connector registry; bootstrap from env vars on first boot |
 | `CatalogueModule` | Product catalogue upload (XLSX/CSV), search, CRUD |
@@ -87,7 +89,7 @@ RfqIntake  (one per ingested message)
 Product
  └── ProductCatalogue
 
-BackgroundJob  (type: attachment_parse | item_match | sheet_export)
+BackgroundJob  (type: attachment_parse | rfq_extract | item_match | sheet_export)
 
 AuditLog  (resourceType + resourceId + event)
 
@@ -138,7 +140,7 @@ sent
 **Automatic advances:**
 - `classified` → set by `RfqIntakeService.createRfqFromIntake()` on classification
 - `ready_for_quote` → set by `RfqExtractionService.extractAsync()` after saving extracted items
-- `quote_draft_created` → set by `QuoteWorkflowService.saveDraft()` on first draft save
+- `quote_draft_created` → set by `QuoteWorkflowService.saveDraft()` on draft save
 - `approved` → set by `QuoteWorkflowService.approveQuote()`
 - `sent` → set by `QuoteEmailService.send()`
 

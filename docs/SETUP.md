@@ -156,9 +156,18 @@ All variables live in `apps/api/.env`. Copy from `apps/api/.env.example` as a st
 | `GMAIL_CLIENT_ID` | no | Google OAuth client ID |
 | `GMAIL_CLIENT_SECRET` | no | Google OAuth client secret |
 | `GMAIL_REFRESH_TOKEN` | no | Long-lived OAuth refresh token |
-| `GMAIL_SEARCH_QUERY` | no | Gmail search filter (default: `subject:RFQ is:unread`) |
+| `GMAIL_SEARCH_QUERY` | no | Gmail search filter (code default: `is:unread`; common override: `subject:RFQ is:unread`) |
 | `GMAIL_MAX_RESULTS` | no | Max messages per sync (default: `20`) |
 | `GMAIL_CRON_SCHEDULE` | no | Cron expression for scheduled sync (default: `0 * * * *`) |
+
+### Outlook Connector
+
+| Variable | Required | Description |
+|---|---|---|
+| `OUTLOOK_CLIENT_ID` | no | Microsoft Entra / Azure app client ID (env-var connector only) |
+| `OUTLOOK_CLIENT_SECRET` | no | Microsoft Entra / Azure app client secret |
+| `OUTLOOK_REFRESH_TOKEN` | no | Long-lived Outlook refresh token |
+| `OUTLOOK_TENANT_ID` | no | Tenant ID or `common` (default: `common`) |
 
 ### LLM / AI
 
@@ -179,6 +188,7 @@ All variables live in `apps/api/.env`. Copy from `apps/api/.env.example` as a st
 | `SMTP_PORT` | no | SMTP port (default: `587`) |
 | `SMTP_USER` | no | SMTP authentication username |
 | `SMTP_PASS` | no | SMTP authentication password |
+| `QUOTE_EMAIL_FROM` | no | Optional sender address override for quote emails |
 | `SMTP_SECURE` | no | `true` enforces TLS (default: `true`; use `false` for MailHog/dev) |
 
 ### Google Sheets Export
@@ -194,6 +204,13 @@ All variables live in `apps/api/.env`. Copy from `apps/api/.env.example` as a st
 |---|---|---|---|
 | `ATTACHMENT_STORAGE_PATH` | no | `./attachments` | Local directory for storing email attachments |
 | `CONNECTOR_AUTO_DISABLE_THRESHOLD` | no | `5` | Consecutive failures before a connector is disabled |
+| `CREDENTIALS_ENCRYPTION_KEY` | no | — | 64-hex-char AES-256-GCM key used to encrypt DB-stored connector credentials |
+
+### Frontend
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | no | `http://localhost:4000` | Frontend base URL for API calls when the API is not on the same host |
 
 ---
 
@@ -211,19 +228,19 @@ Then run:
 npm run test
 ```
 
-The test suite resets the database schema before each run using `prisma db push --force-reset`. It covers:
+The test suite resets the database schema before each run using `prisma db push --force-reset`. It currently covers 58 passing tests across unit and end-to-end flows:
 
 - **Unit tests** — `AuthService`, `UsersService`, `LlmService`, `RfqClassificationService`, `RfqExtractionService`, `AiQuoteGenerationService`, `SmartEmailGenerationService` (via `*.spec.ts` files co-located with source)
-- **E2E tests** — 43 integration tests in `apps/api/test/api.e2e.spec.ts` covering auth, RFQ intake, quote workflow, email, users, connectors, jobs, audit, and health endpoints
+- **E2E tests** — `apps/api/test/api.e2e.spec.ts` and `apps/api/test/mvp1-flow.e2e.spec.ts` covering auth, RFQ intake, quote workflow, email, catalogue, connectors, jobs, audit, and full MVP1 flows
 
-To run only unit tests (no database needed):
+To run only unit tests:
 
 ```bash
-cd apps/api && npx vitest run --testPathPattern="spec.ts"
+cd apps/api && npx vitest run src
 ```
 
 To run only e2e tests:
 
 ```bash
-cd apps/api && npx jest --testRegex="e2e.spec.ts"
+cd apps/api && npx vitest run test/api.e2e.spec.ts test/mvp1-flow.e2e.spec.ts
 ```

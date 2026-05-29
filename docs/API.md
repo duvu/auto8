@@ -230,7 +230,19 @@ Accept or override a specific item match.
 ```
 or
 ```json
-{ "action": "override", "overrideDescription": "Custom desc", "overrideUnitPrice": 9900 }
+{ "action": "override", "overrideDescription": "Custom desc", "overrideUnitPrice": 99 }
+```
+
+---
+
+### `PATCH /api/rfqs/:rfqId/extracted-items/:itemId`
+**Access:** operator
+
+Edit an extracted item inline after review.
+
+**Request body (all fields optional):**
+```json
+{ "partNumber": "ABC-123", "description": "Brake disc", "quantity": 2, "unit": "pcs" }
 ```
 
 ---
@@ -249,7 +261,7 @@ Manually advance or set the pipeline status.
 
 Save or update a quote draft.
 
-**Request body:** `SaveQuoteInput` (customerName, customerCompany, notes, lineItems, discount, tax, grandTotal, paymentTerms, deliveryTerms, validityDays)
+**Request body:** `SaveQuoteInput` (`customerName`, `customerCompany`, `notes`, `lineItems`, `discount`, `tax`, `paymentTerms`, `deliveryTerms`, `validityDays`)
 
 ---
 
@@ -305,6 +317,44 @@ List all registered connectors.
 
 ---
 
+### `GET /api/connectors/:id`
+**Access:** any (authenticated)
+
+Return a single connector.
+
+**Response `200`:** `ConnectorView`
+
+**Response `404`:** connector not found.
+
+---
+
+### `GET /api/connectors/:id/runs`
+**Access:** any (authenticated)
+
+Return paginated ingestion history for a single connector.
+
+**Query params:** `page`, `limit`
+
+**Response `200`:** `PaginatedResponse<IngestionRunView>`
+
+**Response `404`:** connector not found.
+
+---
+
+### `POST /api/connectors/:id/sync`
+**Access:** admin
+
+Trigger an immediate sync for a connector.
+
+For `gmail` and `outlook`, the connector sync runs synchronously and returns a `ConnectorSyncSummary`.
+For `slack`, the endpoint returns `422` because Slack is push-only.
+
+**Response `200`:** `ConnectorSyncSummary`
+
+**Response `422`:** connector is disabled, or connector type is push-only.
+
+---
+
 ### `POST /api/connectors`
 **Access:** admin
 
@@ -332,6 +382,8 @@ Register a new connector.
 
 Update a connector's label, credentials, or enabled state.
 
+Supported connector types: `gmail`, `slack`, `outlook`
+
 ---
 
 ### `DELETE /api/connectors/:id`
@@ -346,7 +398,7 @@ Remove a connector.
 ### `POST /api/connectors/:id/test`
 **Access:** admin
 
-Test the connector by making a live API call (Gmail profile check or Slack `auth.test`).
+Test the connector by making a live API call (Gmail profile check, Slack `auth.test`, or Outlook `GET /me`).
 
 **Response `200`:** `ConnectorTestResult`
 
@@ -359,10 +411,17 @@ Slack Events API endpoint for receiving slash commands and RFQ messages.
 
 ---
 
+### `POST /api/connectors/slack/events`
+**Access:** public (Slack signs the request with HMAC)
+
+Slack Events API endpoint for event callbacks.
+
+---
+
 ### `POST /api/connectors/gmail/sync`
 **Access:** public (protected by `GMAIL_CONNECTOR_SECRET` header)
 
-Trigger a Gmail sync for the env-var connector.
+Trigger a sync for the legacy env-var Gmail connector.
 
 ---
 
@@ -415,10 +474,50 @@ Upload a product catalogue from an XLSX or CSV file. Upserts products by `produc
 
 ---
 
+### `POST /api/catalogue/upload/preview`
+**Access:** admin
+
+Preview a catalogue upload without writing anything to the database.
+
+**Content-Type:** `multipart/form-data`, field name: `file`
+
+**Response `201`:** `UploadPreviewResult`
+
+---
+
+### `GET /api/catalogue/export`
+**Access:** admin
+
+Download all active products as CSV.
+
+**Response `200`:** `text/csv`
+
+---
+
+### `POST /api/catalogue`
+**Access:** admin
+
+Create a single product manually.
+
+**Request body:** `CreateProductInput`
+
+**Response `201`:** `ProductView`
+
+---
+
 ### `GET /api/catalogue/:id`
 **Access:** any (authenticated)
 
 Get a single product.
+
+---
+
+### `PUT /api/catalogue/:id`
+**Access:** admin
+
+Fully update a product.
+
+**Response `200`:** `ProductView`
 
 ---
 
@@ -435,6 +534,15 @@ Update a product's fields.
 Deactivate (soft-delete) a product.
 
 **Response `204`**
+
+---
+
+### `POST /api/catalogue/:id/reactivate`
+**Access:** admin
+
+Reactivate a soft-deleted product.
+
+**Response `200`:** `ProductView`
 
 ---
 
@@ -476,7 +584,7 @@ Test the current LLM configuration with a live completion call.
 
 List background jobs (paginated), optionally filtered by `status` or `type`.
 
-**Query params:** `page`, `limit`, `status` (`pending|running|done|failed`), `type` (`attachment_parse|item_match|sheet_export`)
+**Query params:** `page`, `limit`, `status` (`pending|running|done|failed`), `type` (`attachment_parse|rfq_extract|item_match|sheet_export`)
 
 **Response `200`:** `PaginatedResponse<BackgroundJobView>`
 
@@ -528,6 +636,8 @@ List recent ingestion runs (paginated).
 **Access:** any (authenticated)
 
 Return aggregated ingestion metrics: total runs, success rate, per-connector stats.
+
+The response also includes a `connectors` array with each connector's current health snapshot.
 
 ---
 

@@ -1,3 +1,4 @@
+import "./instrument";
 import "reflect-metadata";
 
 if (process.env.NODE_ENV !== "production") {

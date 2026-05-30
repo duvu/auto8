@@ -2,19 +2,12 @@ import { createHmac } from "node:crypto";
 
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 
+import type { WebhookEndpointView } from "@auto8/shared";
+
 import { PrismaService } from "../prisma/prisma.service";
 import { encrypt, decrypt, isEncrypted } from "../connector-registry/crypto.util";
 import { ConfigService } from "@nestjs/config";
 import type { CreateWebhookEndpointDto, UpdateWebhookEndpointDto } from "./dto/webhook-endpoint.dto";
-
-export interface WebhookEndpointView {
-  id: string;
-  url: string;
-  events: string[];
-  isEnabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
 
 @Injectable()
 export class WebhookEndpointService {
@@ -41,19 +34,23 @@ export class WebhookEndpointService {
     return decrypt(encryptedSecret, key);
   }
 
-  async create(dto: CreateWebhookEndpointDto): Promise<WebhookEndpointView> {
+  async create(dto: CreateWebhookEndpointDto, workspaceId = "default"): Promise<WebhookEndpointView> {
     const endpoint = await this.prisma.webhookEndpoint.create({
       data: {
         url: dto.url,
         secret: this.encryptSecret(dto.secret),
         events: dto.events,
+        workspaceId,
       },
     });
     return this.serialize(endpoint);
   }
 
-  async list(): Promise<WebhookEndpointView[]> {
-    const endpoints = await this.prisma.webhookEndpoint.findMany({ orderBy: { createdAt: "asc" } });
+  async list(workspaceId?: string): Promise<WebhookEndpointView[]> {
+    const endpoints = await this.prisma.webhookEndpoint.findMany({
+      where: workspaceId ? { workspaceId } : undefined,
+      orderBy: { createdAt: "asc" },
+    });
     return endpoints.map((e) => this.serialize(e));
   }
 

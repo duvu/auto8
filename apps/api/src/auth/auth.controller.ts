@@ -8,16 +8,22 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
 
 import type { UserView } from "@auto8/shared";
 
 import { CurrentUser } from "../rbac/current-user.decorator";
+import { CurrentWorkspaceId } from "../rbac/current-workspace-id.decorator";
 import { Public } from "../rbac/public.decorator";
+import { Roles } from "../rbac/roles.decorator";
 import { AuthService } from "./auth.service";
+import { AcceptInviteDto, InviteDto } from "./dto/invite.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { LoginDto } from "./dto/login.dto";
+import { RegisterDto } from "./dto/register.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyEmailDto } from "./dto/verify-email.dto";
 
 const IS_PROD = process.env["NODE_ENV"] === "production";
 
@@ -46,6 +52,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ auth: { ttl: 300000, limit: 5 } })
   @Post("login")
   @HttpCode(HttpStatus.OK)
   async login(
@@ -95,6 +102,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ auth: { ttl: 300000, limit: 5 } })
   @Post("forgot-password")
   @HttpCode(HttpStatus.NO_CONTENT)
   async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
@@ -106,5 +114,47 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
     await this.authService.resetPassword(dto.token, dto.newPassword);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 300000, limit: 5 } })
+  @Post("register")
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() dto: RegisterDto): Promise<{ message: string }> {
+    await this.authService.register(dto.workspaceName, dto.email, dto.password);
+    return { message: "Registration successful. Please verify your email." };
+  }
+
+  @Public()
+  @Post("verify-email")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async verifyEmail(@Body() dto: VerifyEmailDto): Promise<void> {
+    await this.authService.verifyEmail(dto.token);
+  }
+
+  @Roles("admin", "super_admin")
+  @Post("invite")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async invite(
+    @Body() dto: InviteDto,
+    @CurrentWorkspaceId() workspaceId: string,
+  ): Promise<void> {
+    await this.authService.sendInvite(dto.email, workspaceId);
+  }
+
+  @Public()
+  @Post("invite/accept")
+  @HttpCode(HttpStatus.OK)
+  async acceptInvite(
+    @Body() dto: AcceptInviteDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ message: string }> {
+    const { accessToken, refreshToken } = await this.authService.acceptInvite(
+      dto.token,
+      dto.password,
+      dto.name,
+    );
+    setAuthCookies(res, accessToken, refreshToken);
+    return { message: "ok" };
   }
 }

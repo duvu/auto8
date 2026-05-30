@@ -4,6 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthService } from "./auth.service";
 
@@ -49,6 +50,7 @@ describe("AuthService", () => {
       prisma as unknown as PrismaService,
       jwtService as unknown as JwtService,
       configService as unknown as ConfigService,
+      { sendPasswordReset: vi.fn().mockResolvedValue(undefined) } as unknown as EmailService,
     );
   });
 

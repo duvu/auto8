@@ -12,6 +12,7 @@ import {
 import type { UserRole } from "@auto8/shared";
 
 import { Roles } from "../rbac/roles.decorator";
+import { CurrentWorkspaceId } from "../rbac/current-workspace-id.decorator";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { UpdateCustomerDto } from "./dto/update-customer.dto";
 import { CustomerQueryDto } from "./dto/customer-query.dto";
@@ -23,13 +24,13 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  create(@Body() dto: CreateCustomerDto) {
-    return this.customersService.create(dto);
+  create(@Body() dto: CreateCustomerDto, @CurrentWorkspaceId() workspaceId?: string) {
+    return this.customersService.create(dto, workspaceId ?? "default");
   }
 
   @Get()
-  findAll(@Query() query: CustomerQueryDto) {
-    return this.customersService.findAll(query);
+  findAll(@Query() query: CustomerQueryDto, @CurrentWorkspaceId() workspaceId?: string) {
+    return this.customersService.findAll(query, workspaceId);
   }
 
   @Get(":id")

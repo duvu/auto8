@@ -1,4 +1,6 @@
-import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, CatalogueUploadResult, CatalogueEnrichmentSuggestionView, ConfirmEnrichmentInput, ConnectorSyncSummary, ConnectorTestResult, ConnectorView, CreateConnectorInput, CreateProductInput, CustomerView, EnrichmentPreviewResponse, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, PaginatedResponse, ProductView, QuoteEmailDraftView, QuoteEmailSendView, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, RfqMatchGroupView, SaveQuoteInput, SetupStatusView, SlaConfigView, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UpdateSlaConfigInput, UploadPreviewResult, UserView, QuoteDiffResult, ReviseQuoteResult } from "@auto8/shared";
+import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, CatalogueUploadResult, CatalogueEnrichmentSuggestionView, ConfirmEnrichmentInput, ConnectorStatsView, ConnectorSyncSummary, ConnectorTestResult, ConnectorView, CreateConnectorInput, CreateProductInput, CustomerView, EnrichmentPreviewResponse, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, PaginatedResponse, PortalQuoteView, ProductView, QuoteEmailDraftView, QuoteEmailSendView, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, RfqMatchGroupView, RfqReplyView, RfqVolumePoint, ResponseTimeResult, SaveQuoteInput, SetupStatusView, ShareLinkResult, SlaConfigView, TopCustomerView, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UpdateSlaConfigInput, UploadPreviewResult, UserView, WebhookEndpointView, WinRateResult, WorkspaceView, QuoteDiffResult, ReviseQuoteResult } from "@auto8/shared";
+
+export type { ConnectorStatsView, CustomerView, PortalQuoteView, ResponseTimeResult, RfqVolumePoint, RfqReplyView, ShareLinkResult, TopCustomerView, WebhookEndpointView, WinRateResult, WorkspaceView };
 
 import { logout } from "./auth";
 import { API_BASE_URL } from "./config";
@@ -299,6 +301,14 @@ export function testConnector(id: string) {
   return request<ConnectorTestResult>(`/connectors/${id}/test`, { method: "POST" });
 }
 
+export function testConnectorCredentials(type: string, credentials: Record<string, string>) {
+  return request<ConnectorTestResult>(`/connectors/test-credentials`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, credentials }),
+  });
+}
+
 export function getConnector(id: string) {
   return request<ConnectorView>(`/connectors/${id}`);
 }
@@ -459,20 +469,12 @@ export function getSetupStatus() {
   return request<SetupStatusView>("/setup/status");
 }
 
-export interface WebhookEndpoint {
-  id: string;
-  url: string;
-  events: string[];
-  isEnabled: boolean;
-  createdAt: string;
+export async function listWebhookEndpoints(): Promise<WebhookEndpointView[]> {
+  return request<WebhookEndpointView[]>("/webhooks/endpoints");
 }
 
-export async function listWebhookEndpoints(): Promise<WebhookEndpoint[]> {
-  return request<WebhookEndpoint[]>("/webhooks/endpoints");
-}
-
-export async function createWebhookEndpoint(input: { url: string; events: string[]; secret?: string }): Promise<WebhookEndpoint> {
-  return request<WebhookEndpoint>("/webhooks/endpoints", {
+export async function createWebhookEndpoint(input: { url: string; events: string[]; secret?: string }): Promise<WebhookEndpointView> {
+  return request<WebhookEndpointView>("/webhooks/endpoints", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -490,18 +492,90 @@ export async function testWebhookEndpoint(id: string): Promise<{ ok: boolean; er
   });
 }
 
-export async function getRfqReplies(rfqId: string): Promise<Array<{
-  id: string;
-  subject: string | null;
-  senderName: string | null;
-  body: string | null;
-  receivedAt: string;
-}>> {
-  return request<Array<{
-    id: string;
-    subject: string | null;
-    senderName: string | null;
-    body: string | null;
-    receivedAt: string;
-  }>>(`/rfqs/${rfqId}/replies`);
+export async function getRfqReplies(rfqId: string): Promise<RfqReplyView[]> {
+  return request<RfqReplyView[]>(`/rfqs/${rfqId}/replies`);
+}
+
+export function getWorkspace(id: string) {
+  return request<WorkspaceView>(`/workspaces/${id}`);
+}
+
+export function updateWorkspace(id: string, data: { name?: string; slug?: string }) {
+  return request<WorkspaceView>(`/workspaces/${id}`, {
+     method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getAnalyticsRfqVolume() {
+  return request<RfqVolumePoint[]>("/analytics/rfq-volume");
+}
+
+export function getAnalyticsWinRate() {
+  return request<WinRateResult>("/analytics/win-rate");
+}
+
+export function getAnalyticsResponseTime() {
+  return request<ResponseTimeResult>("/analytics/response-time");
+}
+
+export function getAnalyticsTopCustomers() {
+  return request<TopCustomerView[]>("/analytics/top-customers");
+}
+
+export function getAnalyticsConnectors() {
+  return request<ConnectorStatsView[]>("/analytics/connectors");
+}
+
+async function requestPublic<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(buildUrl(path), {
+    ...init,
+    headers,
+    credentials: "omit",
+    cache: "no-store",
+  });
+
+  if (response.ok) {
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  }
+
+  const body = (await response.json().catch(() => ({}))) as { message?: string | string[]; error?: string };
+  const message = Array.isArray(body.message) ? body.message.join(", ") : body.message ?? body.error ?? "Request failed.";
+  throw new Error(message);
+}
+
+export function createPortalShareLink(quoteId: string) {
+  return request<ShareLinkResult>(`/portal/quotes/${quoteId}/share`, { method: "POST" });
+}
+
+export function revokePortalShareLinks(quoteId: string) {
+  return request<void>(`/portal/quotes/${quoteId}/share`, { method: "DELETE" });
+}
+
+export function getPortalQuoteData(token: string) {
+  return requestPublic<PortalQuoteView>(`/portal/q/${token}/data`);
+}
+
+export function portalAcceptQuote(token: string) {
+  return requestPublic<void>(`/portal/q/${token}/accept`, { method: "POST" });
+}
+
+export function portalRejectQuote(token: string, note?: string) {
+  return requestPublic<void>(`/portal/q/${token}/reject`, {
+    method: "POST",
+    body: note ? JSON.stringify({ note }) : undefined,
+  });
+}
+
+export function portalRequestRevision(token: string, note: string) {
+  return requestPublic<void>(`/portal/q/${token}/revision`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
 }

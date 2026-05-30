@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { WorkspaceShell } from "../../components/workspace-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
-import { WebhookEndpoint, listWebhookEndpoints, createWebhookEndpoint, deleteWebhookEndpoint, testWebhookEndpoint } from "../../lib/api";
+import { WebhookEndpointView, listWebhookEndpoints, createWebhookEndpoint, deleteWebhookEndpoint, testWebhookEndpoint } from "../../lib/api";
 
 const AVAILABLE_EVENTS = ["rfq.created", "quote.approved", "quote.sent"];
 
 export default function WebhooksPage() {
-  const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
+  const [endpoints, setEndpoints] = useState<WebhookEndpointView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -160,7 +160,7 @@ export default function WebhooksPage() {
                         </td>
                         <td className="border px-3 py-2">
                           <div className="flex flex-wrap gap-1">
-                            {ep.events.map((e) => (
+                            {ep.events.map((e: string) => (
                               <span key={e} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
                                 {e}
                               </span>

@@ -6,10 +6,9 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import * as nodemailer from "nodemailer";
-import type { Transporter } from "nodemailer";
 import type { QuoteEmailDraftView, QuoteEmailSendView, UpdateQuoteEmailInput } from "@auto8/shared";
 
+import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { SmartEmailGenerationService } from "./smart-email-generation.service";
@@ -20,13 +19,12 @@ export class QuoteEmailService {
 
   webhookEmitter?: { emit(event: string, payload: Record<string, unknown>): Promise<void> };
 
-  private transport?: Transporter;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly auditService: AuditService,
     private readonly smartEmailGeneration: SmartEmailGenerationService,
+    private readonly emailService: EmailService,
   ) {}
 
   async generateDraft(quoteId: string, autoSend: boolean): Promise<void> {
@@ -138,24 +136,14 @@ export class QuoteEmailService {
       throw new NotFoundException("Quote email draft not found.");
     }
 
-    const smtpHost = this.config.get<string>("SMTP_HOST");
-    if (!smtpHost) {
-      throw new InternalServerErrorException(
-        "SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS environment variables."
-      );
-    }
-
-    const transport = this.getTransport();
-    const from = this.config.get<string>("QUOTE_EMAIL_FROM") ?? this.config.get<string>("SMTP_USER") ?? "";
     const sentAt = new Date();
 
     try {
-      await transport.sendMail({
-        from,
-        to: email.recipientEmail,
-        subject: email.subject,
-        text: email.body,
-      });
+      await this.emailService.send(
+        email.recipientEmail,
+        email.subject,
+        `<pre style="white-space:pre-wrap;font-family:sans-serif">${email.body}</pre>`,
+      );
 
       const send = await this.prisma.quoteEmailSend.create({
         data: {
@@ -219,27 +207,6 @@ export class QuoteEmailService {
 
       throw new InternalServerErrorException(`Failed to send email: ${errorMessage}`);
     }
-  }
-
-  private getTransport(): Transporter {
-    if (this.transport) return this.transport;
-
-    const smtpSecure = this.config.get<string>("SMTP_SECURE") !== "false";
-
-    this.transport = nodemailer.createTransport({
-      host: this.config.get<string>("SMTP_HOST"),
-      port: this.config.get<number>("SMTP_PORT") ?? 587,
-      secure: smtpSecure,
-      auth: {
-        user: this.config.get<string>("SMTP_USER"),
-        pass: this.config.get<string>("SMTP_PASS"),
-      },
-      tls: smtpSecure
-        ? { rejectUnauthorized: true }
-        : { rejectUnauthorized: false },
-    });
-
-    return this.transport;
   }
 
   private generateSubject(reference: string, customerName: string): string {

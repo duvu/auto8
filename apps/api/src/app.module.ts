@@ -7,8 +7,11 @@ import { I18nModule, AcceptLanguageResolver, HeaderResolver } from "nestjs-i18n"
 import * as path from "path";
 
 import { ApiRequestLogInterceptor } from "./audit/api-request-log.interceptor";
+import { SentryInterceptor } from "./sentry/sentry.interceptor";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
+import { BillingModule } from "./billing/billing.module";
+import { BillingGuard } from "./billing/billing.guard";
 import { ConfigModule } from "./config/config.module";
 import { ConnectorRegistryModule } from "./connector-registry/connector-registry.module";
 import { GmailModule } from "./gmail/gmail.module";
@@ -35,6 +38,9 @@ import { TelegramModule } from "./telegram/telegram.module";
 import { ZaloModule } from "./zalo/zalo.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 import { WebhookEmitterService } from "./webhooks/webhook-emitter.service";
+import { WorkspaceModule } from "./workspace/workspace.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
+import { PortalModule } from "./portal/portal.module";
 import { RfqIntakeService } from "./rfqs/rfq-intake.service";
 import { QuoteWorkflowService } from "./rfqs/quote-workflow.service";
 import { QuoteEmailService } from "./quote-email/quote-email.service";
@@ -57,8 +63,8 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot(
       process.env['NODE_ENV'] === 'test'
-        ? [{ ttl: 60000, limit: 10000 }]
-        : [{ ttl: 60000, limit: 60 }],
+        ? [{ name: 'default', ttl: 60000, limit: 10000 }, { name: 'auth', ttl: 60000, limit: 10000 }, { name: 'public', ttl: 60000, limit: 10000 }]
+        : [{ name: 'default', ttl: 60000, limit: 60 }, { name: 'auth', ttl: 300000, limit: 5 }, { name: 'public', ttl: 60000, limit: 30 }],
     ),
     LoggerModule.forRoot({
       pinoHttp: {
@@ -70,6 +76,7 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
     }),
     AuditModule,
     AuthModule,
+    BillingModule,
     CatalogueModule,
     SchedulerModule,
     ConnectorRegistryModule,
@@ -91,9 +98,16 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
     TelegramModule,
     ZaloModule,
     WebhooksModule,
+    WorkspaceModule,
+    AnalyticsModule,
+    PortalModule,
   ],
   controllers: [HealthController],
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SentryInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: ApiRequestLogInterceptor,
@@ -105,6 +119,10 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
     {
       provide: APP_GUARD,
       useClass: RbacGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: BillingGuard,
     },
   ],
 })

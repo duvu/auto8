@@ -50,20 +50,23 @@ export class UsersService {
 
   async findAll(
     pagination: PaginationQueryDto = new PaginationQueryDto(),
+    workspaceId?: string,
   ): Promise<PaginatedResponse<UserView>> {
     const skip = (pagination.page - 1) * pagination.limit;
+    const where = workspaceId ? { workspaceId } : {};
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
+        where,
         orderBy: [{ role: "asc" }, { name: "asc" }],
         skip,
         take: pagination.limit,
       }),
-      this.prisma.user.count(),
+      this.prisma.user.count({ where }),
     ]);
     return buildPaginatedResponse(users.map(serializeUser), total, pagination);
   }
 
-  async create(dto: CreateUserDto): Promise<UserView> {
+  async create(dto: CreateUserDto, workspaceId = "default"): Promise<UserView> {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new ConflictException(`A user with email '${dto.email}' already exists.`);
@@ -77,6 +80,7 @@ export class UsersService {
         role: dto.role,
         passwordHash,
         isActive: true,
+        workspaceId,
       },
     });
     return serializeUser(user);
@@ -109,7 +113,6 @@ export class UsersService {
     return serializeUser(updated);
   }
 
-  // Legacy method kept for backward compatibility
   async listUsers(): Promise<UserView[]> {
     const result = await this.findAll();
     return result.data;

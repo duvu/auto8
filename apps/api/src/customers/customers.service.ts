@@ -1,25 +1,12 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 
-import type { PaginatedResponse } from "@auto8/shared";
+import type { CustomerView, PaginatedResponse } from "@auto8/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { buildPaginatedResponse } from "../common/utils/paginate";
 import type { CreateCustomerDto } from "./dto/create-customer.dto";
 import type { UpdateCustomerDto } from "./dto/update-customer.dto";
 import type { CustomerQueryDto } from "./dto/customer-query.dto";
-
-export interface CustomerView {
-  id: string;
-  companyName: string;
-  contactName: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  quoteCount?: number;
-}
 
 function serialize(c: {
   id: string;
@@ -51,22 +38,24 @@ function serialize(c: {
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateCustomerDto): Promise<CustomerView> {
-    const customer = await this.prisma.customer.create({ data: dto });
+  async create(dto: CreateCustomerDto, workspaceId = "default"): Promise<CustomerView> {
+    const customer = await this.prisma.customer.create({ data: { ...dto, workspaceId } });
     return serialize(customer);
   }
 
-  async findAll(query: CustomerQueryDto): Promise<PaginatedResponse<CustomerView>> {
+  async findAll(query: CustomerQueryDto, workspaceId?: string): Promise<PaginatedResponse<CustomerView>> {
     const skip = (query.page - 1) * query.limit;
+    const workspaceFilter = workspaceId ? { workspaceId } : {};
     const where = query.q
       ? {
+          ...workspaceFilter,
           OR: [
             { companyName: { contains: query.q, mode: "insensitive" as const } },
             { contactName: { contains: query.q, mode: "insensitive" as const } },
             { email: { contains: query.q, mode: "insensitive" as const } },
           ],
         }
-      : {};
+      : workspaceFilter;
 
     const [customers, total] = await Promise.all([
       this.prisma.customer.findMany({

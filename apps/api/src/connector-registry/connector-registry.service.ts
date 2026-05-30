@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, OnModuleInit, UnprocessableEntit
 import { ConfigService } from "@nestjs/config";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorView } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorType, ConnectorView } from "@auto8/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateConnectorDto } from "./dto/create-connector.dto";
@@ -148,8 +148,9 @@ export class ConnectorRegistryService implements OnModuleInit {
     this.logger.log("Bootstrapped Outlook connector from env vars");
   }
 
-  async findAll(): Promise<ConnectorView[]> {
+  async findAll(workspaceId?: string): Promise<ConnectorView[]> {
     const connectors = await this.prisma.connector.findMany({
+      where: workspaceId ? { workspaceId } : undefined,
       orderBy: { createdAt: "asc" },
     });
     return connectors.map((c) => this.serialize(c));
@@ -179,13 +180,14 @@ export class ConnectorRegistryService implements OnModuleInit {
     };
   }
 
-  async create(dto: CreateConnectorDto): Promise<ConnectorView> {
+  async create(dto: CreateConnectorDto, workspaceId = "default"): Promise<ConnectorView> {
     const credentialsJson = this.encryptCredentials(JSON.stringify(dto.credentials));
     const connector = await this.prisma.connector.create({
       data: {
         type: dto.type,
         label: dto.label,
         credentialsJson,
+        workspaceId,
       },
     });
     return this.serialize(connector);
@@ -271,6 +273,32 @@ export class ConnectorRegistryService implements OnModuleInit {
     return result;
   }
 
+  async testCredentials(type: string, credentials: Record<string, string>): Promise<ConnectorTestResult> {
+    const transient = {
+      id: "transient",
+      type,
+      label: "transient",
+      credentialsJson: JSON.stringify(credentials),
+      isEnabled: true,
+      lastSyncAt: null,
+      lastError: null,
+      failureCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as import("@prisma/client").Connector;
+    try {
+      if (type === "gmail" && this.gmailService) return await this.gmailService.testConnector(transient);
+      if (type === "slack" && this.slackService) return await this.slackService.testConnector(transient);
+      if (type === "outlook" && this.outlookService) return await this.outlookService.testConnector(transient);
+      if (type === "whatsapp" && this.whatsappService) return await this.whatsappService.testConnector(transient);
+      if (type === "telegram" && this.telegramService) return await this.telegramService.testConnector(transient);
+      if (type === "zalo" && this.zaloService) return await this.zaloService.testConnector(transient);
+      return { ok: false, error: `No test handler for type: ${type}` };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   async testConnector(id: string): Promise<ConnectorTestResult> {
     const connector = await this.findOne(id);
     try {
@@ -301,7 +329,7 @@ export class ConnectorRegistryService implements OnModuleInit {
   private serialize(c: Connector): ConnectorView {
     return {
       id: c.id,
-      type: c.type as "gmail" | "slack" | "outlook" | "whatsapp" | "telegram" | "zalo",
+      type: c.type as ConnectorType,
       label: c.label,
       isEnabled: c.isEnabled,
       lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null,

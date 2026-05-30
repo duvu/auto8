@@ -10,7 +10,9 @@
     "settings": "Cài đặt",
     "webhooks": "Webhooks",
     "logout": "Đăng xuất",
-    "login": "Đăng nhập"
+    "login": "Đăng nhập",
+    "analytics": "Phân tích",
+    "workspace": "Không gian làm việc"
   },
   "login": {
     "eyebrow": "auto8",

@@ -11,7 +11,7 @@ import { WorkspaceShell } from "../../../components/workspace-shell";
 import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
 import { MatchReviewPanel } from "../../../components/MatchReviewPanel";
 import { QuoteEmailTab } from "../../../components/QuoteEmailTab";
-import { approveQuote, assignRfq, fetchRfqDetail, generateQuote, getCustomers, getExtractedCustomer, getExtractedItems, getQuoteRevisions, getQuoteTemplates, getUsers, reviseQuote, saveDraftQuote, saveCustomerFromRfq, submitQuote, getRfqReplies } from "../../../lib/api";
+import { approveQuote, assignRfq, fetchRfqDetail, generateQuote, getCustomers, getExtractedCustomer, getExtractedItems, getQuoteRevisions, getQuoteTemplates, getUsers, reviseQuote, saveDraftQuote, saveCustomerFromRfq, submitQuote, getRfqReplies, createPortalShareLink, revokePortalShareLinks } from "../../../lib/api";
 
 type ReplyItem = {
   id: string;
@@ -76,6 +76,8 @@ export default function RfqDetailPage() {
   const [revising, setRevising] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [assigningRfq, setAssigningRfq] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   const authResult = useRequireAuth();
   const authUser = authResult?.forbidden === false ? authResult.user : null;
@@ -213,6 +215,30 @@ export default function RfqDetailPage() {
       setError(err instanceof Error ? err.message : "Failed to revise quote");
     } finally {
       setRevising(false);
+    }
+  }
+
+  async function handleShare() {
+    if (!detail?.quote) return;
+    setSharing(true);
+    setError(null);
+    try {
+      const result = await createPortalShareLink(detail.quote.id);
+      setShareUrl(result.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create share link.");
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function handleRevokeShare() {
+    if (!detail?.quote) return;
+    try {
+      await revokePortalShareLinks(detail.quote.id);
+      setShareUrl(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to revoke share link.");
     }
   }
 
@@ -704,7 +730,40 @@ export default function RfqDetailPage() {
               {revising ? "Creating revision..." : "Revise quote (new draft)"}
             </button>
           )}
+          {detail.quote && (
+            <button
+              className="button-secondary"
+              disabled={sharing}
+              type="button"
+              onClick={() => void handleShare()}
+            >
+              {sharing ? "Generating..." : "Share Portal Link"}
+            </button>
+          )}
         </div>
+        {shareUrl && (
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              readOnly
+              value={shareUrl}
+              className="border rounded px-3 py-2 text-sm flex-1 bg-gray-50"
+            />
+            <button
+              type="button"
+              className="border rounded px-3 py-2 text-sm hover:bg-gray-50"
+              onClick={() => void navigator.clipboard.writeText(shareUrl)}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              className="border rounded px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              onClick={() => void handleRevokeShare()}
+            >
+              Revoke
+            </button>
+          </div>
+        )}
       </section>
       </>
       )}

@@ -17,16 +17,27 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Response } from "express";
-import type { UserRole } from "@auto8/shared";
+import { IsNumber, Min } from "class-validator";
+import type { ConfirmEnrichmentInput, UserRole } from "@auto8/shared";
 import { Roles } from "../rbac/roles.decorator";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
 import { CatalogueService } from "./catalogue.service";
+import { CatalogueEnrichmentService } from "./catalogue-enrichment.service";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 
+class UpdateMarkupDto {
+  @IsNumber()
+  @Min(0)
+  defaultMarkup!: number;
+}
+
 @Controller("catalogue")
 export class CatalogueController {
-  constructor(private readonly catalogueService: CatalogueService) {}
+  constructor(
+    private readonly catalogueService: CatalogueService,
+    private readonly enrichmentService: CatalogueEnrichmentService,
+  ) {}
 
   // ── Upload preview (must be BEFORE upload to avoid :id conflict) ──────────
 
@@ -96,6 +107,12 @@ export class CatalogueController {
   }
 
   @Roles("admin" as UserRole)
+  @Patch(":id/markup")
+  async updateMarkup(@Param("id") id: string, @Body() dto: UpdateMarkupDto) {
+    return this.catalogueService.updateMarkup(id, dto.defaultMarkup);
+  }
+
+  @Roles("admin" as UserRole)
   @Post(":id/reactivate")
   async reactivate(@Param("id") id: string) {
     return this.catalogueService.reactivate(id);
@@ -106,5 +123,37 @@ export class CatalogueController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deactivate(@Param("id") id: string) {
     return this.catalogueService.deactivate(id);
+  }
+
+  // ── Backfill embeddings ────────────────────────────────────────────────────
+
+  @Roles("admin" as UserRole)
+  @Post("backfill-embeddings")
+  async backfillEmbeddings() {
+    await this.catalogueService.enqueueEmbeddingJob();
+    return { ok: true, message: "Embedding job enqueued for all products" };
+  }
+
+  // ── Enrichment ────────────────────────────────────────────────────────────
+
+  @Roles("admin" as UserRole)
+  @Post(":catalogueId/enrich")
+  async triggerEnrichment(@Param("catalogueId") catalogueId: string) {
+    return this.enrichmentService.triggerEnrichment(catalogueId);
+  }
+
+  @Roles("admin" as UserRole)
+  @Get(":catalogueId/enrichment-preview")
+  async getEnrichmentPreview(@Param("catalogueId") catalogueId: string) {
+    return this.enrichmentService.getPreview(catalogueId);
+  }
+
+  @Roles("admin" as UserRole)
+  @Post(":catalogueId/enrichment-confirm")
+  async confirmEnrichment(
+    @Param("catalogueId") catalogueId: string,
+    @Body() input: ConfirmEnrichmentInput,
+  ) {
+    return this.enrichmentService.confirmEnrichment(catalogueId, input);
   }
 }

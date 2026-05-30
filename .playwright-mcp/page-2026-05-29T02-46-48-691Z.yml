@@ -1,0 +1,94 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - link "auto8" [ref=e3] [cursor=pointer]:
+      - /url: /
+    - link "RFQs" [ref=e4] [cursor=pointer]:
+      - /url: /rfqs
+    - link "Audit Logs" [ref=e5] [cursor=pointer]:
+      - /url: /audit
+    - link "Metrics" [ref=e6] [cursor=pointer]:
+      - /url: /metrics
+  - alert [ref=e23]
+  - generic [ref=e24]:
+    - banner [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e27]: auto8
+        - generic [ref=e28]: /
+        - generic [ref=e29]: RFQs
+      - navigation [ref=e30]:
+        - link "Catalogue" [ref=e31] [cursor=pointer]:
+          - /url: /catalogue
+        - link "Jobs" [ref=e32] [cursor=pointer]:
+          - /url: /jobs
+        - link "Connectors" [ref=e33] [cursor=pointer]:
+          - /url: /connectors
+        - link "Users" [ref=e34] [cursor=pointer]:
+          - /url: /users
+        - link "Settings" [ref=e35] [cursor=pointer]:
+          - /url: /settings
+        - generic [ref=e36]: admin
+        - button "Log out" [ref=e37] [cursor=pointer]
+    - main [ref=e38]:
+      - generic [ref=e39]:
+        - heading "RFQ Intake Dashboard" [level=1] [ref=e40]
+        - paragraph [ref=e41]: Capture inbound RFQs from email or Slack, route them into one queue, and hand them off for draft creation or sales approval.
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - generic [ref=e44]: Active RFQs
+          - strong [ref=e45]: "1"
+        - generic [ref=e46]:
+          - generic [ref=e47]: Pending Approval
+          - strong [ref=e48]: "0"
+        - generic [ref=e49]:
+          - generic [ref=e50]: Approved
+          - strong [ref=e51]: "0"
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - heading "Simulate inbound RFQ email" [level=2] [ref=e55]
+            - paragraph [ref=e56]: Use the normalized email intake contract. Slack uses the signed connector endpoint and appears in the same queue.
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - text: Sender name
+              - textbox "Sender name" [ref=e59]: Alex Buyer
+            - generic [ref=e60]:
+              - text: Sender email
+              - textbox "Sender email" [ref=e61]: buyer@autofleet.example
+          - generic [ref=e62]:
+            - text: Subject
+            - textbox "Subject" [ref=e63]: "RFQ: cabin filters for service inventory"
+          - generic [ref=e64]:
+            - text: Email body
+            - textbox "Email body" [ref=e65]: Please quote 60 cabin filters for next week's service intake.
+          - button "Create RFQ" [ref=e67] [cursor=pointer]
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - heading "RFQ work queue" [level=2] [ref=e70]
+            - paragraph [ref=e71]: Open any RFQ to draft a quote, submit it for approval, or confirm an approved status.
+          - generic [ref=e72]:
+            - button "Active (1)" [ref=e73] [cursor=pointer]
+            - button "Rejected (0)" [ref=e74] [cursor=pointer]
+          - generic [ref=e75]:
+            - generic [ref=e76]: "Pipeline:"
+            - combobox [ref=e77]:
+              - option "All" [selected]
+              - option "classified"
+              - option "needs review"
+              - option "ready for quote"
+              - option "quote draft created"
+              - option "quote submitted"
+              - option "approved"
+              - option "sent"
+              - option "closed"
+          - 'link "RFQ-1001 RFQ: cabin filters for service inventory Email new Alex Buyer buyer@autofleet.example Received 5/29/2026, 9:15:20 AM" [ref=e79] [cursor=pointer]':
+            - /url: /rfqs/cmpqahx110036qs01asp77t3o
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - heading "RFQ-1001" [level=3] [ref=e82]
+                - generic [ref=e83]: "RFQ: cabin filters for service inventory"
+              - generic [ref=e84]:
+                - generic [ref=e85]: Email
+                - generic [ref=e86]: new
+            - generic [ref=e87]: Alex Buyer
+            - generic [ref=e88]: buyer@autofleet.example
+            - generic [ref=e89]: Received 5/29/2026, 9:15:20 AM

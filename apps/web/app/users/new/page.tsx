@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createUser } from "../../../lib/api";
+import { WorkspaceShell } from "../../../components/workspace-shell";
+import { useRequireAuth } from "../../../lib/use-require-auth";
 
 const ROLES = ["quote_operator", "sales_approver", "admin"];
 
@@ -15,6 +17,7 @@ export default function NewUserPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const authResult = useRequireAuth("admin");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,20 +34,24 @@ export default function NewUserPage() {
     }
   }
 
+  if (!authResult) return null;
+  if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
+
   return (
-    <main className="page">
-      <section className="hero">
-        <div className="eyebrow">auto8 / Admin</div>
-        <h1>Add User</h1>
-        <p className="panel-subtitle">Create a new system user.</p>
-      </section>
+    <WorkspaceShell
+      title="Add User"
+      description="Create a new system user."
+      authUser={authResult.user}
+      section="Users"
+    >
+      <div className="max-w-xl mx-auto">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm">{error}</div>
+          )}
 
-      <section className="panel" style={{ maxWidth: 480, margin: "0 auto" }}>
-        <form onSubmit={handleSubmit} className="stack">
-          {error && <div className="error">{error}</div>}
-
-          <label>
-            Name
+          <div>
+            <label className="block text-sm font-medium mb-1">Name</label>
             <input
               type="text"
               value={name}
@@ -52,31 +59,37 @@ export default function NewUserPage() {
               placeholder="Full name"
               required
               autoFocus
+              className="w-full border rounded px-3 py-2 text-sm"
             />
-          </label>
+          </div>
 
-          <label>
-            Email
+          <div>
+            <label className="block text-sm font-medium mb-1">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="user@auto8.dev"
               required
+              className="w-full border rounded px-3 py-2 text-sm"
             />
-          </label>
+          </div>
 
-          <label>
-            Role
-            <select value={role} onChange={(e) => setRole(e.target.value)}>
+          <div>
+            <label className="block text-sm font-medium mb-1">Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+            >
               {ROLES.map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label>
-            Password
+          <div>
+            <label className="block text-sm font-medium mb-1">Password</label>
             <input
               type="password"
               value={password}
@@ -84,15 +97,16 @@ export default function NewUserPage() {
               placeholder="Password"
               required
               minLength={6}
+              className="w-full border rounded px-3 py-2 text-sm"
             />
-          </label>
+          </div>
 
-          <div className="actions">
-            <button className="button" type="submit" disabled={loading}>
+          <div className="flex gap-3">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50" type="submit" disabled={loading}>
               {loading ? "Creating..." : "Create user"}
             </button>
             <button
-              className="button-ghost"
+              className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
               type="button"
               onClick={() => router.push("/users")}
             >
@@ -100,7 +114,7 @@ export default function NewUserPage() {
             </button>
           </div>
         </form>
-      </section>
-    </main>
+      </div>
+    </WorkspaceShell>
   );
 }

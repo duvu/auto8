@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { type Prisma } from "@prisma/client";
+import { type Prisma, RfqSourceType } from "@prisma/client";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 import type {
@@ -26,6 +26,7 @@ import { RfqExtractionService } from "./rfq-extraction.service";
 import { RfqClassificationService } from "./rfq-classification.service";
 import { JobsService } from "../jobs/jobs.service";
 import { optionalString } from "../common/utils/string.util";
+import { SlaService } from "../sla/sla.service";
 
 const rfqDetailInclude = {
   intake: true,
@@ -63,7 +64,10 @@ export class RfqIntakeService {
     private readonly rfqExtractionService: RfqExtractionService,
     private readonly rfqClassificationService: RfqClassificationService,
     private readonly jobsService: JobsService,
+    private readonly slaService: SlaService,
   ) {}
+
+  webhookEmitter?: { emit(event: string, payload: Record<string, unknown>): Promise<void> };
 
   async intakeEmail(input: IntakeEmailInput): Promise<RfqDetailView> {
     this.validateEmailIntake(input);
@@ -103,8 +107,14 @@ export class RfqIntakeService {
     isRfq?: boolean,
     pagination: PaginationQueryDto = new PaginationQueryDto(),
     pipelineStatus?: string,
+    assignedToId?: string,
+    includeReplies = false,
   ): Promise<PaginatedResponse<RfqListItemView>> {
     const whereConditions: Prisma.RfqWhereInput[] = [];
+
+    if (!includeReplies) {
+      (whereConditions as unknown as Array<Record<string, unknown>>).push({ intake: { isReply: false } });
+    }
 
     if (isRfq !== undefined) {
       whereConditions.push({ intake: { isRfq } });
@@ -114,14 +124,22 @@ export class RfqIntakeService {
       whereConditions.push({ intake: { rfqPipelineStatus: pipelineStatus } });
     }
 
+    if (assignedToId !== undefined) {
+      if (assignedToId === "unassigned") {
+        (whereConditions as unknown as Array<Record<string, unknown>>).push({ assignedToId: null });
+      } else {
+        (whereConditions as unknown as Array<Record<string, unknown>>).push({ assignedToId });
+      }
+    }
+
     const where: Prisma.RfqWhereInput | undefined =
       whereConditions.length > 0 ? { AND: whereConditions } : undefined;
 
     const skip = (pagination.page - 1) * pagination.limit;
 
     const [rfqs, total] = await Promise.all([
-      this.prisma.rfq.findMany({
-        include: { intake: true },
+      (this.prisma.rfq as unknown as { findMany: (args: unknown) => Promise<Array<{ id: string; reference: string; workflowState: "new" | "draft" | "pending_approval" | "approved"; assignedToId: string | null; assignedTo: { name: string } | null; expectedResponseBy: Date | null; intake: { sourceType: "email" | "slack" | "outlook" | "whatsapp" | "telegram"; sourceLabel: string; senderEmail: string | null; senderName: string | null; subject: string; receivedAt: Date; isRfq: boolean; classificationScore: number | null; rfqPipelineStatus: string } }>> }).findMany({
+        include: { intake: true, assignedTo: { select: { id: true, name: true } } },
         where,
         orderBy: { intake: { receivedAt: "desc" } },
         skip,
@@ -146,11 +164,22 @@ export class RfqIntakeService {
     return this.serializeRfqDetail(rfq);
   }
 
+  async getReplies(rfqId: string): Promise<{ id: string; subject: string; senderName: string | null; body: string; receivedAt: string }[]> {
+    const intakes = await this.prisma.rfqIntake.findMany({
+      where: { replyToRfqId: rfqId },
+      select: { id: true, subject: true, senderName: true, body: true, receivedAt: true },
+      orderBy: { receivedAt: "asc" },
+    });
+    return intakes.map((i) => ({ ...i, receivedAt: i.receivedAt.toISOString() }));
+  }
+
   async createRfqFromIntake(input: NormalizedRfqIntake): Promise<RfqDetailView> {
     const MAX_RETRIES = 5;
 
     // Determine initial pipeline status based on classification
     const pipelineStatus = input.isRfq === false ? "needs_review" : "classified";
+
+    const expectedResponseBy = await this.slaService.computeExpectedResponseBy();
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
@@ -158,7 +187,7 @@ export class RfqIntakeService {
           const sequence = (await tx.rfq.count()) + 1001;
           const intake = await tx.rfqIntake.create({
             data: {
-              sourceType: input.sourceType,
+              sourceType: input.sourceType as RfqSourceType,
               sourceLabel: input.sourceLabel,
               senderEmail: input.senderEmail,
               senderName: input.senderName,
@@ -177,6 +206,8 @@ export class RfqIntakeService {
               gmailMessageId: input.gmailMessageId,
               outlookMessageId: input.outlookMessageId ?? null,
               gmailThreadId: input.gmailThreadId,
+              isReply: input.isReply ?? false,
+              replyToRfqId: input.replyToRfqId ?? null,
               isRfq: input.isRfq ?? true,
               classificationScore: input.classificationScore ?? null,
               classificationReason: input.classificationReason ?? null,
@@ -199,10 +230,13 @@ export class RfqIntakeService {
           }
 
           return tx.rfq.create({
-            data: {
-              intakeId: intake.id,
-              reference: `RFQ-${String(sequence).padStart(4, "0")}`,
-            },
+            data: Object.assign(
+              {
+                intakeId: intake.id,
+                reference: `RFQ-${String(sequence).padStart(4, "0")}`,
+              },
+              { expectedResponseBy } as Record<string, unknown>,
+            ) as Parameters<typeof tx.rfq.create>[0]["data"],
             include: rfqDetailInclude,
           });
         });
@@ -216,8 +250,7 @@ export class RfqIntakeService {
           after: { id: rfq.id, reference: rfq.reference, sourceType: rfq.intake.sourceType },
         });
 
-        // If not a real RFQ (classified as non-RFQ), skip downstream workflow steps
-        if (input.isRfq === false) {
+        if (input.isRfq === false || input.isReply === true) {
           return detail;
         }
 
@@ -240,6 +273,9 @@ export class RfqIntakeService {
         if (!input.attachments || input.attachments.length === 0) {
           this.jobsService.enqueue("rfq_extract", { rfqId: rfq.id }).catch((err: unknown) => this.logger.error("Failed to enqueue rfq_extract job", err));
         }
+        this.webhookEmitter?.emit("rfq.created", { rfqId: rfq.id, reference: rfq.reference }).catch(
+          (err: unknown) => this.logger.error("Failed to emit rfq.created webhook", err),
+        );
         return detail;
       } catch (err) {
         if (err instanceof PrismaClientKnownRequestError && err.code === "P2002" && attempt < MAX_RETRIES - 1) {
@@ -301,8 +337,11 @@ export class RfqIntakeService {
     id: string;
     reference: string;
     workflowState: "new" | "draft" | "pending_approval" | "approved";
+    assignedToId?: string | null;
+    assignedTo?: { name: string } | null;
+    expectedResponseBy?: Date | null;
     intake: {
-      sourceType: "email" | "slack" | "outlook";
+sourceType: "email" | "slack" | "outlook" | "whatsapp" | "telegram" | "zalo";
       sourceLabel: string;
       senderEmail: string | null;
       senderName: string | null;
@@ -313,6 +352,11 @@ export class RfqIntakeService {
       rfqPipelineStatus: string;
     };
   }): RfqListItemView {
+    const now = new Date();
+    const expectedResponseBy = (rfq as unknown as { expectedResponseBy: Date | null }).expectedResponseBy;
+    const assignedToId = (rfq as unknown as { assignedToId: string | null }).assignedToId;
+    const assignedTo = (rfq as unknown as { assignedTo?: { name: string } | null }).assignedTo;
+    const slaBreached = expectedResponseBy != null && expectedResponseBy < now;
     return {
       id: rfq.id,
       reference: rfq.reference,
@@ -326,6 +370,10 @@ export class RfqIntakeService {
       isRfq: rfq.intake.isRfq,
       classificationScore: rfq.intake.classificationScore,
       rfqPipelineStatus: rfq.intake.rfqPipelineStatus,
+      assignedToId: assignedToId ?? null,
+      assignedToName: assignedTo?.name ?? null,
+      expectedResponseBy: expectedResponseBy?.toISOString() ?? null,
+      slaBreached,
     };
   }
 
@@ -353,9 +401,13 @@ export class RfqIntakeService {
             tax: rfq.quote.tax,
              grandTotal: rfq.quote.grandTotal,
             currency: rfq.quote.currency,
+            exchangeRate: (rfq.quote as unknown as { exchangeRate: number }).exchangeRate ?? 1.0,
+            customerId: (rfq.quote as unknown as { customerId: string | null }).customerId ?? null,
             paymentTerms: rfq.quote.paymentTerms,
             deliveryTerms: rfq.quote.deliveryTerms,
             validityDays: rfq.quote.validityDays,
+            version: (rfq.quote as unknown as { version: number }).version ?? 1,
+            parentQuoteId: (rfq.quote as unknown as { parentQuoteId: string | null }).parentQuoteId ?? null,
             lineItems: rfq.quote.lineItems.map((item) => ({
               id: item.id,
               description: item.description,
@@ -364,6 +416,7 @@ export class RfqIntakeService {
               discount: item.discount,
               subtotal: item.subtotal,
               productId: item.productId,
+              suggestedPrice: null,
             })),
           }
         : null,

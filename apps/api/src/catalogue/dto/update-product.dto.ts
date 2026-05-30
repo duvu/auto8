@@ -23,6 +23,11 @@ export class UpdateProductDto {
   basePrice?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  defaultMarkup?: number;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }

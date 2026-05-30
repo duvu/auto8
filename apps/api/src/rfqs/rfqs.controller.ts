@@ -1,7 +1,7 @@
 import { Body, ConflictException, Controller, Get, NotFoundException, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import type { User } from "@prisma/client";
-import type { RfqPipelineStatus } from "@auto8/shared";
+import type { AssignRfqInput, RfqPipelineStatus } from "@auto8/shared";
 
 import { CurrentUser } from "../rbac/current-user.decorator";
 import { Public } from "../rbac/public.decorator";
@@ -38,10 +38,18 @@ export class RfqsController {
   async listRfqs(
     @Query("isRfq") isRfqParam?: string,
     @Query("pipelineStatus") pipelineStatus?: string,
+    @Query("assignedToId") assignedToId?: string,
+    @Query("includeReplies") includeRepliesParam?: string,
     @Query() pagination?: PaginationQueryDto,
   ) {
     const isRfq = isRfqParam === undefined ? undefined : isRfqParam === "true";
-    return this.rfqIntakeService.listRfqs(isRfq, pagination, pipelineStatus);
+    const includeReplies = includeRepliesParam === "true";
+    return this.rfqIntakeService.listRfqs(isRfq, pagination, pipelineStatus, assignedToId, includeReplies);
+  }
+
+  @Get(":rfqId/replies")
+  async getReplies(@Param("rfqId") rfqId: string) {
+    return this.rfqIntakeService.getReplies(rfqId);
   }
 
   @Get(":rfqId")
@@ -134,5 +142,62 @@ export class RfqsController {
   @Get(":rfqId/extracted-customer")
   async getExtractedCustomer(@Param("rfqId") rfqId: string) {
     return this.rfqExtractionService.getExtractedCustomer(rfqId);
+  }
+
+  @Post(":rfqId/quote/:quoteId/revise")
+  @Roles(UserRole.quote_operator)
+  async reviseQuote(
+    @Param("quoteId") quoteId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.quoteWorkflowService.reviseQuote(quoteId, user.id);
+  }
+
+  @Get(":rfqId/quote/revisions")
+  async getRevisions(@Param("rfqId") rfqId: string) {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      include: { quote: true },
+    });
+    if (!rfq?.quote) throw new NotFoundException("No quote found for this RFQ.");
+    return this.quoteWorkflowService.getRevisions(rfq.quote.id);
+  }
+
+  @Get(":rfqId/quote/diff")
+  async getQuoteDiff(@Param("rfqId") rfqId: string) {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id: rfqId },
+      include: { quote: true },
+    });
+    if (!rfq?.quote) throw new NotFoundException("No quote found for this RFQ.");
+    return this.quoteWorkflowService.getQuoteDiff(rfq.quote.id);
+  }
+
+  @Patch(":rfqId/assign")
+  @Roles(UserRole.admin)
+  async assignRfq(
+    @Param("rfqId") rfqId: string,
+    @Body() body: AssignRfqInput,
+  ) {
+    return this.quoteWorkflowService.assignRfq(rfqId, body);
+  }
+
+  @Post(":rfqId/extracted-customer/save")
+  async saveExtractedCustomer(@Param("rfqId") rfqId: string) {
+    const ec = await (this.prisma as unknown as { rfqExtractedCustomer: { findUnique: (args: unknown) => Promise<Record<string, unknown> | null> } })
+      .rfqExtractedCustomer.findUnique({ where: { rfqId } });
+    if (!ec) {
+      throw new Error("No extracted customer found for this RFQ");
+    }
+    const customer = await (this.prisma as unknown as { customer: { create: (args: unknown) => Promise<Record<string, unknown>> } })
+      .customer.create({
+        data: {
+          companyName: (ec["customerCompany"] as string | null) ?? "Unknown",
+          contactName: ec["customerContact"] as string | null,
+          email: ec["customerEmail"] as string | null,
+          phone: ec["customerPhone"] as string | null,
+        },
+      });
+    return customer;
   }
 }

@@ -1,0 +1,14 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - link "auto8" [ref=e3] [cursor=pointer]:
+      - /url: /
+    - link "RFQs" [ref=e4] [cursor=pointer]:
+      - /url: /rfqs
+    - link "Audit Logs" [ref=e5] [cursor=pointer]:
+      - /url: /audit
+    - link "Metrics" [ref=e6] [cursor=pointer]:
+      - /url: /metrics
+  - generic [ref=e8]:
+    - heading "404" [level=1] [ref=e9]
+    - heading "This page could not be found." [level=2] [ref=e11]
+  - alert [ref=e12]

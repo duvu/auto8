@@ -79,6 +79,30 @@ export class LlmService implements OnModuleInit {
     return config?.model ?? "gpt-4o-mini";
   }
 
+  async embedText(text: string): Promise<number[] | null> {
+    const config = await this.getActiveConfig();
+    if (!config) return null;
+
+    if (config.provider === "openai" || config.provider === "ollama") {
+      const clientOptions: ConstructorParameters<typeof OpenAI>[0] = {
+        apiKey: config.apiKey || "ollama",
+      };
+      if (config.baseUrl) clientOptions.baseURL = config.baseUrl;
+      const client = new OpenAI(clientOptions);
+      const embeddingModel = config.provider === "ollama" ? (config.model ?? "nomic-embed-text") : "text-embedding-3-small";
+      try {
+        const response = await client.embeddings.create({ model: embeddingModel, input: text });
+        return response.data[0]?.embedding ?? null;
+      } catch (err) {
+        this.logger.error(`Embedding call failed: ${String(err)}`);
+        return null;
+      }
+    }
+
+    this.logger.warn(`embedText not supported for provider: ${config.provider}`);
+    return null;
+  }
+
   async completeJson(systemPrompt: string, userPrompt: string): Promise<unknown> {
     const config = await this.getActiveConfig();
     if (!config) {

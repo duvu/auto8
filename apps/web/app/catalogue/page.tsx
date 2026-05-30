@@ -8,8 +8,11 @@ import {
   reactivateProduct,
   exportCatalogue,
 } from "../../lib/api";
+import { WorkspaceShell } from "../../components/workspace-shell";
+import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function CataloguePage() {
+  const authResult = useRequireAuth();
   const [products, setProducts] = useState<ProductView[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -76,7 +79,11 @@ export default function CataloguePage() {
     }
   };
 
+  if (!authResult) return null;
+  if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
+
   return (
+    <WorkspaceShell title="Product Catalogue" description="Manage your product catalogue." authUser={authResult.user} section="Catalogue">
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Product Catalogue</h1>
@@ -88,6 +95,14 @@ export default function CataloguePage() {
           >
             {exporting ? "Exporting..." : "Export CSV"}
           </button>
+          {authResult.user.role === "admin" && (
+            <a
+              href="/catalogue/default/enrich"
+              className="border border-purple-400 text-purple-600 px-4 py-2 rounded hover:bg-purple-50 text-sm"
+            >
+              Enrich with AI
+            </a>
+          )}
           <a
             href="/catalogue/new"
             className="border border-blue-600 text-blue-600 px-4 py-2 rounded hover:bg-blue-50 text-sm"
@@ -129,28 +144,54 @@ export default function CataloguePage() {
                   <th className="border px-3 py-2">Name</th>
                   <th className="border px-3 py-2">Brand</th>
                   <th className="border px-3 py-2">Unit</th>
-                  <th className="border px-3 py-2">Base Price</th>
-                  <th className="border px-3 py-2">Status</th>
-                  <th className="border px-3 py-2">Actions</th>
+                   <th className="border px-3 py-2">Base Price</th>
+                   <th className="border px-3 py-2">Markup %</th>
+                   <th className="border px-3 py-2">Tags</th>
+                   <th className="border px-3 py-2">Status</th>
+                   <th className="border px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="border px-3 py-4 text-center text-gray-500">
-                      No products found. Upload a catalogue or create a product to get started.
+                     <td colSpan={9} className="border px-3 py-8 text-center">
+                      <p className="text-sm font-medium text-ink mb-1">No products yet</p>
+                      <p className="text-xs text-muted mb-3">Upload a spreadsheet to bulk-import your product catalogue, or add products one by one.</p>
+                      <div className="flex justify-center gap-3">
+                        <a href="/catalogue/upload" className="text-xs font-medium text-accent underline hover:opacity-80">Upload catalogue →</a>
+                        <a href="/catalogue/new" className="text-xs font-medium text-accent underline hover:opacity-80">Add product →</a>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   products.map((p) => (
-                    <tr key={p.id} className={p.isActive ? "" : "opacity-50"}>
-                      <td className="border px-3 py-2 font-mono text-xs">{p.productCode}</td>
-                      <td className="border px-3 py-2">{p.productName}</td>
-                      <td className="border px-3 py-2 text-gray-600">{p.brand ?? "—"}</td>
-                      <td className="border px-3 py-2 text-gray-600">{p.unit ?? "—"}</td>
-                      <td className="border px-3 py-2">
-                        {p.basePrice != null ? `${p.currency} ${p.basePrice.toFixed(2)}` : "—"}
-                      </td>
+                     <tr key={p.id} className={p.isActive ? "" : "opacity-50"}>
+                       <td className="border px-3 py-2 font-mono text-xs">{p.productCode}</td>
+                       <td className="border px-3 py-2">{p.productName}</td>
+                       <td className="border px-3 py-2 text-gray-600">{p.brand ?? "—"}</td>
+                       <td className="border px-3 py-2 text-gray-600">{p.unit ?? "—"}</td>
+                       <td className="border px-3 py-2">
+                         {p.basePrice != null ? `${p.currency} ${p.basePrice.toFixed(2)}` : "—"}
+                       </td>
+                       <td className="border px-3 py-2 text-gray-600">
+                         {p.defaultMarkup > 0 ? `${p.defaultMarkup}%` : "—"}
+                       </td>
+                       <td className="border px-3 py-2">
+                         {p.categoryTags && p.categoryTags.length > 0 ? (
+                           <div className="flex flex-wrap gap-1">
+                             {p.categoryTags.slice(0, 3).map((tag: string) => (
+                               <span key={tag} className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                                 {tag}
+                               </span>
+                             ))}
+                             {p.categoryTags.length > 3 && (
+                               <span className="text-xs text-gray-500">+{p.categoryTags.length - 3}</span>
+                             )}
+                           </div>
+                         ) : (
+                           <span className="text-gray-400">—</span>
+                         )}
+                       </td>
                       <td className="border px-3 py-2">
                         <span className={`text-xs px-2 py-0.5 rounded ${p.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                           {p.isActive ? "Active" : "Inactive"}
@@ -203,5 +244,6 @@ export default function CataloguePage() {
         </>
       )}
     </div>
+    </WorkspaceShell>
   );
 }

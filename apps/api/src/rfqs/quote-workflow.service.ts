@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import { QuoteStatus, type Prisma } from "@prisma/client";
 
-import type { GenerateQuoteResult, QuoteLineItemInput, RfqDetailView, SaveQuoteInput } from "@auto8/shared";
+import type { AssignRfqInput, GenerateQuoteResult, QuoteDiffResult, QuoteLineItemInput, RfqDetailView, ReviseQuoteResult, SaveQuoteInput } from "@auto8/shared";
 import { calcQuoteTotals } from "@auto8/shared";
 
 import { optionalString } from "../common/utils/string.util";
@@ -21,6 +21,8 @@ import { JobsService } from "../jobs/jobs.service";
 @Injectable()
 export class QuoteWorkflowService {
   private readonly logger = new Logger(QuoteWorkflowService.name);
+
+  webhookEmitter?: { emit(event: string, payload: Record<string, unknown>): Promise<void> };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -47,24 +49,63 @@ export class QuoteWorkflowService {
       throw new ConflictException("Only draft quotes can be edited.");
     }
 
+    let resolvedInput = input;
+    if (input.templateId) {
+      const template = await (this.prisma as unknown as { quoteTemplate: { findUnique: (args: unknown) => Promise<{ paymentTerms: string | null; deliveryTerms: string | null; validityDays: number | null; currency: string; headerNotes: string | null; lineItems: Array<{ description: string; quantity: number; unitPrice: number; sortOrder: number; productId: string | null }> } | null> } }).quoteTemplate.findUnique({
+        where: { id: input.templateId },
+        include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+      });
+      if (template) {
+        resolvedInput = {
+          ...input,
+          paymentTerms: input.paymentTerms ?? template.paymentTerms ?? undefined,
+          deliveryTerms: input.deliveryTerms ?? template.deliveryTerms ?? undefined,
+          validityDays: input.validityDays ?? template.validityDays ?? undefined,
+          currency: input.currency ?? template.currency,
+          notes: input.notes ?? template.headerNotes ?? undefined,
+          lineItems: input.lineItems.length > 0
+            ? input.lineItems
+            : template.lineItems.map((li) => ({
+                description: li.description,
+                quantity: li.quantity,
+                unitPrice: li.unitPrice,
+                productId: li.productId ?? undefined,
+              })),
+        };
+      }
+    }
+
+    if (resolvedInput.customerId) {
+      const customer = await (this.prisma as unknown as { customer: { findUnique: (args: unknown) => Promise<{ id: string } | null> } }).customer.findUnique({
+        where: { id: resolvedInput.customerId },
+        select: { id: true },
+      });
+      if (!customer) {
+        throw new NotFoundException(`Customer ${resolvedInput.customerId} not found.`);
+      }
+    }
+
     if (!rfq.quote) {
       await this.prisma.$transaction(async (tx) => {
-        const lineItemsData = input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
-        const computedGrandTotal = calcQuoteTotals(lineItemsData, input.discount ?? 0, input.tax ?? 0).grandTotal;
+        const lineItemsData = resolvedInput.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
+        const computedGrandTotal = calcQuoteTotals(lineItemsData, resolvedInput.discount ?? 0, resolvedInput.tax ?? 0).grandTotal;
 
-        const quote = await tx.quote.create({
+        const quote = await (tx as unknown as { quote: { create: (args: unknown) => Promise<{ id: string }> } }).quote.create({
           data: {
             rfqId,
-            customerName: input.customerName.trim(),
-            customerCompany: input.customerCompany.trim(),
-            notes: optionalString(input.notes),
+            customerName: resolvedInput.customerName.trim(),
+            customerCompany: resolvedInput.customerCompany.trim(),
+            notes: optionalString(resolvedInput.notes),
             createdById: actorId,
-            ...(input.discount !== undefined && { discount: input.discount }),
-            ...(input.tax !== undefined && { tax: input.tax }),
+            ...(resolvedInput.discount !== undefined && { discount: resolvedInput.discount }),
+            ...(resolvedInput.tax !== undefined && { tax: resolvedInput.tax }),
             grandTotal: computedGrandTotal,
-            ...(input.paymentTerms && { paymentTerms: input.paymentTerms }),
-            ...(input.deliveryTerms && { deliveryTerms: input.deliveryTerms }),
-            ...(input.validityDays !== undefined && { validityDays: input.validityDays }),
+            ...(resolvedInput.currency && { currency: resolvedInput.currency }),
+            ...(resolvedInput.exchangeRate !== undefined && { exchangeRate: resolvedInput.exchangeRate }),
+            ...(resolvedInput.customerId && { customerId: resolvedInput.customerId }),
+            ...(resolvedInput.paymentTerms && { paymentTerms: resolvedInput.paymentTerms }),
+            ...(resolvedInput.deliveryTerms && { deliveryTerms: resolvedInput.deliveryTerms }),
+            ...(resolvedInput.validityDays !== undefined && { validityDays: resolvedInput.validityDays }),
             lineItems: {
               create: lineItemsData,
             },
@@ -83,21 +124,24 @@ export class QuoteWorkflowService {
       const existingQuoteId = rfq.quote.id;
 
       await this.prisma.$transaction(async (tx) => {
-        const lineItemsData = input.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
-        const computedGrandTotal = calcQuoteTotals(lineItemsData, input.discount ?? 0, input.tax ?? 0).grandTotal;
+        const lineItemsData = resolvedInput.lineItems.map((item, index) => this.serializeLineItemCreate(item, index));
+        const computedGrandTotal = calcQuoteTotals(lineItemsData, resolvedInput.discount ?? 0, resolvedInput.tax ?? 0).grandTotal;
 
-        await tx.quote.update({
+        await (tx as unknown as { quote: { update: (args: unknown) => Promise<unknown> } }).quote.update({
           where: { id: existingQuoteId },
           data: {
-            customerName: input.customerName.trim(),
-            customerCompany: input.customerCompany.trim(),
-            notes: optionalString(input.notes),
-            ...(input.discount !== undefined && { discount: input.discount }),
-            ...(input.tax !== undefined && { tax: input.tax }),
+            customerName: resolvedInput.customerName.trim(),
+            customerCompany: resolvedInput.customerCompany.trim(),
+            notes: optionalString(resolvedInput.notes),
+            ...(resolvedInput.discount !== undefined && { discount: resolvedInput.discount }),
+            ...(resolvedInput.tax !== undefined && { tax: resolvedInput.tax }),
             grandTotal: computedGrandTotal,
-            ...(input.paymentTerms !== undefined && { paymentTerms: input.paymentTerms }),
-            ...(input.deliveryTerms !== undefined && { deliveryTerms: input.deliveryTerms }),
-            ...(input.validityDays !== undefined && { validityDays: input.validityDays }),
+            ...(resolvedInput.currency && { currency: resolvedInput.currency }),
+            ...(resolvedInput.exchangeRate !== undefined && { exchangeRate: resolvedInput.exchangeRate }),
+            ...(resolvedInput.customerId !== undefined && { customerId: resolvedInput.customerId }),
+            ...(resolvedInput.paymentTerms !== undefined && { paymentTerms: resolvedInput.paymentTerms }),
+            ...(resolvedInput.deliveryTerms !== undefined && { deliveryTerms: resolvedInput.deliveryTerms }),
+            ...(resolvedInput.validityDays !== undefined && { validityDays: resolvedInput.validityDays }),
             lineItems: {
               deleteMany: {},
               create: lineItemsData,
@@ -224,6 +268,9 @@ export class QuoteWorkflowService {
     );
 
     this.auditService.log({ actorId, action: 'quote.approve', resourceType: 'quote', resourceId: quoteId, after: { status: 'approved' } });
+    this.webhookEmitter?.emit("quote.approved", { quoteId, rfqId: quote.rfqId }).catch((err: unknown) =>
+      this.logger.error("Failed to emit quote.approved webhook", err),
+    );
     return this.rfqIntakeService.getRfqDetail(quote.rfqId);
   }
 
@@ -341,5 +388,148 @@ export class QuoteWorkflowService {
     };
 
     return this.saveDraft(rfqId, input, actorId);
+  }
+
+  async reviseQuote(quoteId: string, actorId: string): Promise<ReviseQuoteResult> {
+    const existing = await (this.prisma as unknown as { quote: { findUnique: (args: unknown) => Promise<{ id: string; rfqId: string; status: string; version: number; customerName: string; customerCompany: string; notes: string | null; discount: number; tax: number; currency: string; exchangeRate: number; paymentTerms: string | null; deliveryTerms: string | null; validityDays: number | null; customerId: string | null; lineItems: Array<{ description: string; quantity: number; unitPrice: number; discount: number; sortOrder: number; productId: string | null }> } | null> } }).quote.findUnique({
+      where: { id: quoteId },
+      include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+    });
+
+    if (!existing) throw new NotFoundException("Quote not found.");
+    if (existing.status !== QuoteStatus.approved) {
+      throw new ConflictException("Only approved quotes can be revised.");
+    }
+
+    const newVersion = existing.version + 1;
+    const revisedStatus = "revised" as unknown as QuoteStatus;
+    const newQuote = await this.prisma.$transaction(async (tx) => {
+      await (tx as unknown as { quote: { update: (args: unknown) => Promise<unknown> } }).quote.update({
+        where: { id: quoteId },
+        data: { status: revisedStatus },
+      });
+
+      await (tx as unknown as { quoteStatusEvent: { create: (args: unknown) => Promise<unknown> } }).quoteStatusEvent.create({
+        data: { quoteId, status: revisedStatus, actorId },
+      });
+
+      const created = await (tx as unknown as { quote: { create: (args: unknown) => Promise<{ id: string }> } }).quote.create({
+        data: {
+          rfqId: existing.rfqId,
+          customerName: existing.customerName,
+          customerCompany: existing.customerCompany,
+          notes: existing.notes,
+          discount: existing.discount,
+          tax: existing.tax,
+          currency: existing.currency,
+          exchangeRate: existing.exchangeRate,
+          paymentTerms: existing.paymentTerms,
+          deliveryTerms: existing.deliveryTerms,
+          validityDays: existing.validityDays,
+          customerId: existing.customerId,
+          createdById: actorId,
+          version: newVersion,
+          parentQuoteId: quoteId,
+          lineItems: {
+            create: existing.lineItems.map((li) => ({
+              description: li.description,
+              quantity: li.quantity,
+              unitPrice: li.unitPrice,
+              discount: li.discount,
+              sortOrder: li.sortOrder,
+              productId: li.productId,
+              subtotal: Math.round(li.unitPrice * li.quantity * (1 - li.discount / 100) * 100) / 100,
+            })),
+          },
+        },
+      });
+
+      await (tx as unknown as { quoteStatusEvent: { create: (args: unknown) => Promise<unknown> } }).quoteStatusEvent.create({
+        data: { quoteId: created.id, status: QuoteStatus.draft, actorId },
+      });
+
+      // Reset rfq workflow state to draft
+      await tx.rfq.update({ where: { id: existing.rfqId }, data: { workflowState: "draft" } });
+
+      return created;
+    });
+
+    this.auditService.log({ actorId, action: 'quote.revise', resourceType: 'quote', resourceId: quoteId, after: { newQuoteId: newQuote.id, version: newVersion } });
+    return { newQuoteId: newQuote.id, version: newVersion, rfqId: existing.rfqId };
+  }
+
+  async getRevisions(quoteId: string): Promise<Array<{ id: string; version: number; status: string; createdAt: string; parentQuoteId: string | null }>> {
+    // Find root quote by traversing parent chain
+    let rootId = quoteId;
+    type QuoteChain = { id: string; parentQuoteId: string | null };
+    const findRoot = async (id: string): Promise<string> => {
+      const q = await (this.prisma as unknown as { quote: { findUnique: (args: unknown) => Promise<QuoteChain | null> } }).quote.findUnique({ where: { id }, select: { id: true, parentQuoteId: true } });
+      if (!q) return id;
+      if (q.parentQuoteId) return findRoot(q.parentQuoteId);
+      return q.id;
+    };
+    rootId = await findRoot(quoteId);
+
+    // Get all quotes in the chain starting from root
+    const collectChain = async (id: string): Promise<Array<{ id: string; version: number; status: string; createdAt: Date; parentQuoteId: string | null }>> => {
+      const q = await (this.prisma as unknown as { quote: { findUnique: (args: unknown) => Promise<{ id: string; version: number; status: string; createdAt: Date; parentQuoteId: string | null; revisions: Array<{ id: string }> } | null> } }).quote.findUnique({
+        where: { id },
+        select: { id: true, version: true, status: true, createdAt: true, parentQuoteId: true, revisions: { select: { id: true } } },
+      });
+      if (!q) return [];
+      const children = await Promise.all(q.revisions.map((r) => collectChain(r.id)));
+      return [{ id: q.id, version: q.version, status: q.status, createdAt: q.createdAt, parentQuoteId: q.parentQuoteId }, ...children.flat()];
+    };
+
+    const chain = await collectChain(rootId);
+    return chain
+      .sort((a, b) => a.version - b.version)
+      .map((q) => ({ id: q.id, version: q.version, status: q.status, createdAt: q.createdAt.toISOString(), parentQuoteId: q.parentQuoteId }));
+  }
+
+  async getQuoteDiff(quoteId: string): Promise<QuoteDiffResult> {
+    type QuoteWithItems = { id: string; version: number; parentQuoteId: string | null; customerName: string; customerCompany: string; notes: string | null; discount: number; tax: number; currency: string; exchangeRate: number; paymentTerms: string | null; deliveryTerms: string | null; validityDays: number | null; lineItems: Array<{ description: string; quantity: number; unitPrice: number }> };
+    const quote = await (this.prisma as unknown as { quote: { findUnique: (args: unknown) => Promise<QuoteWithItems | null> } }).quote.findUnique({
+      where: { id: quoteId },
+      include: { lineItems: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!quote) throw new NotFoundException("Quote not found.");
+    if (!quote.parentQuoteId) return { quoteId, parentQuoteId: '', version: quote.version, diffs: [] };
+
+    const parent = await (this.prisma as unknown as { quote: { findUnique: (args: unknown) => Promise<QuoteWithItems | null> } }).quote.findUnique({
+      where: { id: quote.parentQuoteId },
+      include: { lineItems: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!parent) return { quoteId, parentQuoteId: quote.parentQuoteId, version: quote.version, diffs: [] };
+
+    const scalarFields: Array<keyof Omit<QuoteWithItems, 'id' | 'version' | 'parentQuoteId' | 'lineItems'>> = [
+      'customerName', 'customerCompany', 'notes', 'discount', 'tax', 'currency', 'exchangeRate', 'paymentTerms', 'deliveryTerms', 'validityDays',
+    ];
+    const diffs: Array<{ field: string; before: unknown; after: unknown }> = scalarFields
+      .filter((f) => parent[f] !== quote[f])
+      .map((f) => ({ field: f as string, before: parent[f] as unknown, after: quote[f] as unknown }));
+
+    if (JSON.stringify(parent.lineItems) !== JSON.stringify(quote.lineItems)) {
+      diffs.push({ field: 'lineItems', before: parent.lineItems as unknown, after: quote.lineItems as unknown });
+    }
+
+    return { quoteId, parentQuoteId: quote.parentQuoteId, version: quote.version, diffs };
+  }
+
+  async assignRfq(rfqId: string, input: AssignRfqInput): Promise<{ ok: boolean }> {
+    const rfq = await this.prisma.rfq.findUnique({ where: { id: rfqId }, select: { id: true } });
+    if (!rfq) throw new NotFoundException("RFQ not found.");
+
+    if (input.assignedToId !== null) {
+      const user = await this.prisma.user.findUnique({ where: { id: input.assignedToId }, select: { id: true } });
+      if (!user) throw new NotFoundException("User not found.");
+    }
+
+    await (this.prisma as unknown as { rfq: { update: (args: unknown) => Promise<unknown> } }).rfq.update({
+      where: { id: rfqId },
+      data: { assignedToId: input.assignedToId },
+    });
+
+    return { ok: true };
   }
 }

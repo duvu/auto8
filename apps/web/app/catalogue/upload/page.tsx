@@ -3,10 +3,13 @@
 import { useState, useRef } from "react";
 import type { CatalogueUploadResult, UploadPreviewResult, UploadPreviewRow } from "@auto8/shared";
 import { uploadCatalogue, previewCatalogueUpload } from "../../../lib/api";
+import { WorkspaceShell } from "../../../components/workspace-shell";
+import { useRequireAuth } from "../../../lib/use-require-auth";
 
 type Stage = "select" | "preview" | "done";
 
 export default function CatalogueUploadPage() {
+  const authResult = useRequireAuth();
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<Stage>("select");
   const [previewing, setPreviewing] = useState(false);
@@ -61,7 +64,11 @@ export default function CatalogueUploadPage() {
     return "text-gray-500 bg-gray-50";
   };
 
+  if (!authResult) return null;
+  if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
+
   return (
+    <WorkspaceShell title="Upload Catalogue" description="Import products from a spreadsheet." authUser={authResult.user} section="Catalogue">
     <div className="p-6 max-w-2xl">
       <div className="flex items-center gap-3 mb-6">
         <a href="/catalogue" className="text-blue-600 hover:underline text-sm">
@@ -198,5 +205,6 @@ export default function CatalogueUploadPage() {
         </div>
       )}
     </div>
+    </WorkspaceShell>
   );
 }

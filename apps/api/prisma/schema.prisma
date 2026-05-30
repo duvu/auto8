@@ -17,6 +17,7 @@ enum QuoteStatus {
   draft
   pending_approval
   approved
+  revised
 }
 
 enum RfqWorkflowState {
@@ -30,6 +31,9 @@ enum RfqSourceType {
   email
   slack
   outlook
+  whatsapp
+  telegram
+  zalo
 }
 
 model User {
@@ -46,6 +50,8 @@ model User {
   emailSends           QuoteEmailSend[]
   refreshTokens        RefreshToken[]
   passwordResetTokens  PasswordResetToken[]
+  templatesCreated     QuoteTemplate[]      @relation("TemplateCreatedBy")
+  assignedRfqs         Rfq[]                @relation("RfqAssignedTo")
 }
 
 model RfqIntake {
@@ -74,6 +80,9 @@ model RfqIntake {
   classificationReason String?
   rfqPipelineStatus  String        @default("new")
   attachmentContent  String?
+  isReply            Boolean       @default(false)
+  replyToRfqId       String?
+  replyToRfq         Rfq?          @relation("RfqReplies", fields: [replyToRfqId], references: [id])
   connectorId        String?
   connector          Connector?    @relation(fields: [connectorId], references: [id])
   createdAt          DateTime      @default(now())
@@ -82,16 +91,20 @@ model RfqIntake {
 }
 
 model Rfq {
-  id              String             @id @default(cuid())
-  reference       String             @unique
-  workflowState   RfqWorkflowState   @default(new)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  intakeId        String             @unique
-  intake          RfqIntake          @relation(fields: [intakeId], references: [id])
-  quote           Quote?
-  extractedItems  RfqExtractedItem[]
+  id                String             @id @default(cuid())
+  reference         String             @unique
+  workflowState     RfqWorkflowState   @default(new)
+  assignedToId      String?
+  assignedTo        User?              @relation("RfqAssignedTo", fields: [assignedToId], references: [id])
+  expectedResponseBy DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  intakeId          String             @unique
+  intake            RfqIntake          @relation(fields: [intakeId], references: [id])
+  quote             Quote?
+  extractedItems    RfqExtractedItem[]
   extractedCustomer RfqExtractedCustomer?
+  replyIntakes      RfqIntake[]           @relation("RfqReplies")
 }
 
 model RfqExtractedItem {
@@ -117,9 +130,14 @@ model Quote {
   tax             Float              @default(0)
   grandTotal      Float?
   currency        String             @default("USD")
+  exchangeRate    Float              @default(1.0)
   paymentTerms    String?
   deliveryTerms   String?
   validityDays    Int?
+  version         Int                @default(1)
+  parentQuoteId   String?
+  parentQuote     Quote?             @relation("QuoteRevisions", fields: [parentQuoteId], references: [id])
+  revisions       Quote[]            @relation("QuoteRevisions")
   status          QuoteStatus        @default(draft)
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -131,6 +149,8 @@ model Quote {
   createdBy       User               @relation("QuoteCreatedBy", fields: [createdById], references: [id])
   approvedById    String?
   approvedBy      User?              @relation("QuoteApprovedBy", fields: [approvedById], references: [id])
+  customerId      String?
+  customer        Customer?          @relation(fields: [customerId], references: [id])
   lineItems       QuoteLineItem[]
   statusEvents    QuoteStatusEvent[]
   email           QuoteEmail?
@@ -243,30 +263,46 @@ model ApiRequestLog {
 }
 
 model ProductCatalogue {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  products    Product[]
+  id                     String                          @id @default(cuid())
+  name                   String
+  description            String?
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  products               Product[]
+  enrichmentSuggestions  CatalogueEnrichmentSuggestion[]
 }
 
 model Product {
-  id              String           @id @default(cuid())
-  catalogueId     String
-  catalogue       ProductCatalogue @relation(fields: [catalogueId], references: [id])
-  productCode     String           @unique
-  productName     String
-  description     String?
-  brand           String?
-  unit            String?
-  basePrice       Float?
-  currency        String           @default("USD")
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  lineItems       QuoteLineItem[]
-  matches         RfqItemMatch[]
+  id                String                        @id @default(cuid())
+  catalogueId       String
+  catalogue         ProductCatalogue              @relation(fields: [catalogueId], references: [id])
+  productCode       String                        @unique
+  productName       String
+  description       String?
+  brand             String?
+  unit              String?
+  basePrice         Float?
+  currency          String                        @default("USD")
+  defaultMarkup     Float                         @default(0)
+  isActive          Boolean                       @default(true)
+  categoryTags      String[]
+  embedding         Unsupported("vector(1536)")?
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+  lineItems         QuoteLineItem[]
+  matches           RfqItemMatch[]
+  templateLineItems QuoteTemplateLineItem[]
+}
+
+model CatalogueEnrichmentSuggestion {
+  id           String           @id @default(cuid())
+  catalogueId  String
+  catalogue    ProductCatalogue @relation(fields: [catalogueId], references: [id], onDelete: Cascade)
+  productCode  String
+  suggestions  Json
+  status       String           @default("pending")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 }
 
 model RfqAttachment {
@@ -282,10 +318,26 @@ model RfqAttachment {
   createdAt    DateTime  @default(now())
 }
 
+model Customer {
+  id            String    @id @default(cuid())
+  companyName   String
+  contactName   String?
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  quotes        Quote[]
+  extractedCustomers RfqExtractedCustomer[]
+}
+
 model RfqExtractedCustomer {
-  id                String   @id @default(cuid())
-  rfqId             String   @unique
-  rfq               Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  id                String    @id @default(cuid())
+  rfqId             String    @unique
+  rfq               Rfq       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  customerId        String?
+  customer          Customer? @relation(fields: [customerId], references: [id])
   customerCompany   String?
   customerContact   String?
   customerEmail     String?
@@ -293,7 +345,7 @@ model RfqExtractedCustomer {
   deliveryLocation  String?
   requestedDeadline String?
   notes             String?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime  @default(now())
 }
 
 model RfqItemMatch {
@@ -364,4 +416,65 @@ model Connector {
   updatedAt      DateTime       @updatedAt
   rfqIntakes     RfqIntake[]
   ingestionRuns  IngestionRun[]
+}
+
+model QuoteTemplate {
+  id            String                  @id @default(cuid())
+  name          String
+  description   String?
+  headerNotes   String?
+  paymentTerms  String?
+  deliveryTerms String?
+  validityDays  Int?
+  currency      String                  @default("USD")
+  createdById   String
+  createdBy     User                    @relation("TemplateCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  lineItems     QuoteTemplateLineItem[]
+}
+
+model QuoteTemplateLineItem {
+  id          String         @id @default(cuid())
+  templateId  String
+  template    QuoteTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  unitPrice   Float          @default(0)
+  sortOrder   Int
+  productId   String?
+  product     Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+}
+
+model SlaConfig {
+  id                    String   @id @default("default")
+  defaultResponseHours  Int      @default(24)
+  warningThresholdHours Int      @default(4)
+  updatedAt             DateTime @updatedAt
+}
+
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  url        String
+  secret     String
+  events     String[]
+  isEnabled  Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id             String           @id @default(cuid())
+  endpointId     String
+  endpoint       WebhookEndpoint  @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event          String
+  payload        Json
+  status         String           @default("pending")
+  responseStatus Int?
+  lastError      String?
+  attemptCount   Int              @default(0)
+  deliveredAt    DateTime?
+  createdAt      DateTime         @default(now())
 }

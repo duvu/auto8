@@ -17,6 +17,9 @@ export class ConnectorRegistryService implements OnModuleInit {
   gmailService?: { testConnector(c: Connector): Promise<ConnectorTestResult>; sync(c: Connector): Promise<ConnectorSyncSummary> };
   slackService?: { testConnector(c: Connector): Promise<ConnectorTestResult> };
   outlookService?: { testConnector(c: Connector): Promise<ConnectorTestResult>; sync(c: Connector): Promise<ConnectorSyncSummary> };
+  whatsappService?: { testConnector(c: Connector): Promise<ConnectorTestResult> };
+  telegramService?: { testConnector(c: Connector): Promise<ConnectorTestResult> };
+  zaloService?: { testConnector(c: Connector): Promise<ConnectorTestResult> };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -246,8 +249,8 @@ export class ConnectorRegistryService implements OnModuleInit {
     if (!connector.isEnabled) {
       throw new UnprocessableEntityException("Connector is disabled.");
     }
-    if (connector.type === "slack") {
-      throw new UnprocessableEntityException("Slack is push-only and cannot be manually synced.");
+    if (connector.type === "slack" || connector.type === "whatsapp" || connector.type === "telegram" || connector.type === "zalo") {
+      throw new UnprocessableEntityException(`${connector.type} is push-only and cannot be manually synced.`);
     }
     let syncError: string | undefined;
     let result: ConnectorSyncSummary = { imported: 0, skipped: 0, failed: 0, importedReferences: [], errors: [] };
@@ -280,6 +283,15 @@ export class ConnectorRegistryService implements OnModuleInit {
       if (connector.type === "outlook" && this.outlookService) {
         return await this.outlookService.testConnector(connector);
       }
+      if (connector.type === "whatsapp" && this.whatsappService) {
+        return await this.whatsappService.testConnector(connector);
+      }
+      if (connector.type === "telegram" && this.telegramService) {
+        return await this.telegramService.testConnector(connector);
+      }
+      if (connector.type === "zalo" && this.zaloService) {
+        return await this.zaloService.testConnector(connector);
+      }
       return { ok: false, error: `No test handler for type: ${connector.type}` };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -289,7 +301,7 @@ export class ConnectorRegistryService implements OnModuleInit {
   private serialize(c: Connector): ConnectorView {
     return {
       id: c.id,
-      type: c.type as "gmail" | "slack" | "outlook",
+      type: c.type as "gmail" | "slack" | "outlook" | "whatsapp" | "telegram" | "zalo",
       label: c.label,
       isEnabled: c.isEnabled,
       lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null,

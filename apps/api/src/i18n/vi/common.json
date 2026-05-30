@@ -1,0 +1,20 @@
+{
+  "validation": {
+    "isEmail": "Phải là địa chỉ email hợp lệ",
+    "isNotEmpty": "{property} không được để trống",
+    "minLength": "{property} phải có ít nhất {constraints.0} ký tự",
+    "maxLength": "{property} không được vượt quá {constraints.0} ký tự",
+    "isString": "{property} phải là chuỗi",
+    "isEnum": "{property} phải là một trong: {constraints.0}"
+  },
+  "auth": {
+    "invalidCredentials": "Email hoặc mật khẩu không hợp lệ",
+    "unauthorized": "Yêu cầu xác thực",
+    "forbidden": "Truy cập bị từ chối",
+    "tokenExpired": "Phiên đã hết hạn, vui lòng đăng nhập lại"
+  },
+  "common": {
+    "notFound": "Không tìm thấy {resource}",
+    "internalError": "Đã xảy ra lỗi không mong muốn"
+  }
+}

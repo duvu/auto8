@@ -1,13 +1,15 @@
 import { forwardRef, Inject, Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AttachmentService } from "../attachments/attachment.service";
 import { ItemMatchingService } from "../matching/item-matching.service";
 import { SheetExportService } from "../sheet-export/sheet-export.service";
 import { AuditService } from "../audit/audit.service";
 import { RfqExtractionService } from "../rfqs/rfq-extraction.service";
+import { LlmService } from "../llm/llm.service";
 
-export type JobType = "attachment_parse" | "item_match" | "sheet_export" | "rfq_extract";
+export type JobType = "attachment_parse" | "item_match" | "sheet_export" | "rfq_extract" | "generate_embeddings" | "catalogue_enrichment" | "webhook_deliver";
 
 @Injectable()
 export class JobsService implements OnModuleInit {
@@ -21,6 +23,7 @@ export class JobsService implements OnModuleInit {
     @Optional() private readonly sheetExportService?: SheetExportService,
     @Optional() private readonly auditService?: AuditService,
     @Optional() @Inject(forwardRef(() => RfqExtractionService)) private readonly rfqExtractionService?: RfqExtractionService,
+    @Optional() private readonly llmService?: LlmService,
   ) {}
 
   onModuleInit(): void {
@@ -67,6 +70,55 @@ export class JobsService implements OnModuleInit {
       this.registerHandler("rfq_extract", async (payload) => {
         const rfqId = payload["rfqId"] as string;
         await this.rfqExtractionService!.extractAsync(rfqId);
+      });
+    }
+
+    if (this.llmService) {
+      this.registerHandler("generate_embeddings", async (payload) => {
+        const catalogueId = payload["catalogueId"] as string | undefined;
+        const where = catalogueId ? { catalogueId } : {};
+        const products = await this.prisma.product.findMany({
+          where: { ...where, isActive: true },
+          select: { id: true, productName: true, productCode: true, description: true },
+          take: 100,
+        });
+        for (const product of products) {
+          const text = [product.productName, product.productCode, product.description ?? ""].join(" ");
+          const embedding = await this.llmService!.embedText(text);
+          if (!embedding) continue;
+          const vectorLiteral = `[${embedding.join(",")}]`;
+          await this.prisma.$executeRaw`
+            UPDATE "public"."Product" SET embedding = ${vectorLiteral}::vector WHERE id = ${product.id}
+          `;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      });
+
+      this.registerHandler("catalogue_enrichment", async (payload) => {
+        const catalogueId = payload["catalogueId"] as string;
+        const products = await this.prisma.product.findMany({
+          where: { catalogueId, isActive: true },
+          select: { id: true, productCode: true, productName: true, description: true, brand: true },
+          take: 50,
+        });
+        for (const product of products) {
+          const result = await this.llmService!.completeJson(
+            "You are a product catalogue enrichment assistant. Given a product, return a JSON object with: categoryTags (array of 1-5 relevant category tags), improvedDescription (string, max 200 chars, or null if already good), brand (string or null if unknown).",
+            `Product: ${product.productName}\nCode: ${product.productCode}\nDescription: ${product.description ?? "N/A"}\nBrand: ${product.brand ?? "N/A"}`
+          ) as { categoryTags?: string[]; improvedDescription?: string | null; brand?: string | null } | null;
+
+          if (!result) continue;
+
+          await this.prisma.catalogueEnrichmentSuggestion.create({
+            data: {
+              catalogueId,
+              productCode: product.productCode,
+              suggestions: result as unknown as Prisma.InputJsonValue,
+              status: "pending",
+            },
+          });
+          await new Promise((r) => setTimeout(r, 200));
+        }
       });
     }
   }

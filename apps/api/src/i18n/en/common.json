@@ -1,0 +1,20 @@
+{
+  "validation": {
+    "isEmail": "Must be a valid email address",
+    "isNotEmpty": "{property} must not be empty",
+    "minLength": "{property} must be at least {constraints.0} characters",
+    "maxLength": "{property} must be at most {constraints.0} characters",
+    "isString": "{property} must be a string",
+    "isEnum": "{property} must be one of: {constraints.0}"
+  },
+  "auth": {
+    "invalidCredentials": "Invalid email or password",
+    "unauthorized": "Authentication required",
+    "forbidden": "Access denied",
+    "tokenExpired": "Session expired, please log in again"
+  },
+  "common": {
+    "notFound": "{resource} not found",
+    "internalError": "An unexpected error occurred"
+  }
+}

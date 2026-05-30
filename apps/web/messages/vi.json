@@ -1,0 +1,54 @@
+{
+  "nav": {
+    "catalogue": "Danh mục",
+    "customers": "Khách hàng",
+    "jobs": "Công việc",
+    "connectors": "Kết nối",
+    "users": "Người dùng",
+    "templates": "Mẫu báo giá",
+    "setup": "Thiết lập",
+    "settings": "Cài đặt",
+    "webhooks": "Webhooks",
+    "logout": "Đăng xuất",
+    "login": "Đăng nhập"
+  },
+  "login": {
+    "eyebrow": "auto8",
+    "title": "Đăng nhập",
+    "subtitle": "Nhập thông tin đăng nhập để truy cập không gian làm việc.",
+    "email": "Email",
+    "emailPlaceholder": "ban@example.com",
+    "password": "Mật khẩu",
+    "passwordPlaceholder": "Mật khẩu",
+    "submit": "Đăng nhập",
+    "submitting": "Đang đăng nhập...",
+    "forgotPassword": "Quên mật khẩu?",
+    "errorDefault": "Đăng nhập thất bại. Vui lòng thử lại."
+  },
+  "forgotPassword": {
+    "eyebrow": "auto8",
+    "title": "Quên mật khẩu",
+    "subtitle": "Nhập email và chúng tôi sẽ gửi cho bạn liên kết đặt lại.",
+    "email": "Email",
+    "emailPlaceholder": "ban@example.com",
+    "submit": "Gửi liên kết đặt lại",
+    "submitting": "Đang gửi...",
+    "backToLogin": "← Quay lại đăng nhập",
+    "successMessage": "Kiểm tra email của bạn để nhận liên kết đặt lại mật khẩu. Liên kết sẽ hết hạn sau 1 giờ.",
+    "errorDefault": "Đã xảy ra lỗi. Vui lòng thử lại."
+  },
+  "resetPassword": {
+    "eyebrow": "auto8",
+    "title": "Đặt lại mật khẩu",
+    "subtitle": "Nhập mật khẩu mới của bạn bên dưới.",
+    "newPassword": "Mật khẩu mới",
+    "newPasswordPlaceholder": "Ít nhất 8 ký tự",
+    "submit": "Đặt lại mật khẩu",
+    "submitting": "Đang đặt lại...",
+    "invalidToken": "Token đặt lại không hợp lệ hoặc bị thiếu. Vui lòng yêu cầu liên kết đặt lại mật khẩu mới.",
+    "errorDefault": "Không thể đặt lại mật khẩu. Liên kết có thể đã hết hạn."
+  },
+  "languageSwitcher": {
+    "label": "Ngôn ngữ"
+  }
+}

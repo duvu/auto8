@@ -1,0 +1,7 @@
+[     545ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://auto8.x51.vn/rfqs?_rsc=5CB68i4pnAekjehf:0
+[     605ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://auto8.x51.vn/api/rfqs?isRfq=false:0
+[     606ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://auto8.x51.vn/api/auth/me:0
+[     606ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://auto8.x51.vn/api/rfqs?isRfq=true:0
+[     970ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://auto8.x51.vn/login:0
+[    1268ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://auto8.x51.vn/rfqs?_rsc=_H_fFy2_Q06N8BA7:0
+[   23200ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://auto8.x51.vn/rfqs?_rsc=5CB68i4pnAekjehf:0

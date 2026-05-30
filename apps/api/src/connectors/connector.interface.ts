@@ -3,7 +3,7 @@ import type { Connector } from "@prisma/client";
 import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
 
 export type NormalizedRfqIntake = {
-  sourceType: "email" | "slack" | "outlook";
+  sourceType: "email" | "slack" | "outlook" | "whatsapp" | "telegram" | "zalo";
   sourceLabel: string;
   senderEmail: string | null;
   senderName: string | null;
@@ -32,6 +32,8 @@ export type NormalizedRfqIntake = {
     storagePath: string;
   }>;
   connectorId?: string | null;
+  isReply?: boolean;
+  replyToRfqId?: string | null;
 };
 
 export interface ConnectorService {

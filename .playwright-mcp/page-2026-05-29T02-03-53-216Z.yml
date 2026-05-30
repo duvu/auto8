@@ -1,0 +1,28 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - link "auto8" [ref=e3] [cursor=pointer]:
+      - /url: /
+    - link "RFQs" [ref=e4] [cursor=pointer]:
+      - /url: /rfqs
+    - link "Audit Logs" [ref=e5] [cursor=pointer]:
+      - /url: /audit
+    - link "Metrics" [ref=e6] [cursor=pointer]:
+      - /url: /metrics
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: auto8
+      - heading "Sign in" [level=1] [ref=e10]
+      - paragraph [ref=e11]: Enter your credentials to access the workspace.
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - text: Email
+        - textbox "Email" [active] [ref=e15]:
+          - /placeholder: you@example.com
+      - generic [ref=e16]:
+        - text: Password
+        - textbox "Password" [ref=e17]
+      - generic [ref=e18]:
+        - button "Sign in" [ref=e19] [cursor=pointer]
+        - link "Forgot password?" [ref=e20] [cursor=pointer]:
+          - /url: /forgot-password
+  - alert [ref=e21]

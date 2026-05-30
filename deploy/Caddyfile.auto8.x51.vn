@@ -1,0 +1,8 @@
+auto8.x51.vn {
+    handle /api/* {
+        reverse_proxy http://10.113.213.9:3001
+    }
+    handle {
+        reverse_proxy http://10.113.213.9:3002
+    }
+}

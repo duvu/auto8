@@ -63,6 +63,23 @@ export class SaveQuoteDto implements SaveQuoteInput {
   @Min(1)
   validityDays?: number;
 
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  exchangeRate?: number;
+
+  @IsOptional()
+  @IsString()
+  templateId?: string;
+
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => QuoteLineItemDto)

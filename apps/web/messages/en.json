@@ -1,0 +1,54 @@
+{
+  "nav": {
+    "catalogue": "Catalogue",
+    "customers": "Customers",
+    "jobs": "Jobs",
+    "connectors": "Connectors",
+    "users": "Users",
+    "templates": "Templates",
+    "setup": "Setup",
+    "settings": "Settings",
+    "webhooks": "Webhooks",
+    "logout": "Log out",
+    "login": "Log in"
+  },
+  "login": {
+    "eyebrow": "auto8",
+    "title": "Sign in",
+    "subtitle": "Enter your credentials to access the workspace.",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "password": "Password",
+    "passwordPlaceholder": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in...",
+    "forgotPassword": "Forgot password?",
+    "errorDefault": "Login failed. Please try again."
+  },
+  "forgotPassword": {
+    "eyebrow": "auto8",
+    "title": "Forgot Password",
+    "subtitle": "Enter your email and we'll send you a reset link.",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "submit": "Send Reset Link",
+    "submitting": "Sending...",
+    "backToLogin": "← Back to sign in",
+    "successMessage": "Check your email for a password reset link. It will expire in 1 hour.",
+    "errorDefault": "Something went wrong. Please try again."
+  },
+  "resetPassword": {
+    "eyebrow": "auto8",
+    "title": "Reset Password",
+    "subtitle": "Enter your new password below.",
+    "newPassword": "New Password",
+    "newPasswordPlaceholder": "At least 8 characters",
+    "submit": "Reset Password",
+    "submitting": "Resetting...",
+    "invalidToken": "Invalid or missing reset token. Please request a new password reset link.",
+    "errorDefault": "Failed to reset password. The link may have expired."
+  },
+  "languageSwitcher": {
+    "label": "Language"
+  }
+}

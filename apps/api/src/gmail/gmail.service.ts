@@ -108,6 +108,20 @@ export class GmailConnectorService implements ConnectorService {
 
         const savedAttachments = await this.downloadAttachments(gmail, msg);
 
+        let isReply = false;
+        let replyToRfqId: string | null = null;
+        if (msg.threadId) {
+          const existingThreadIntake = await this.prisma.rfqIntake.findFirst({
+            where: { gmailThreadId: msg.threadId, gmailMessageId: { not: msg.messageId } },
+            include: { rfq: { select: { id: true } } },
+            orderBy: { receivedAt: "asc" },
+          });
+          if (existingThreadIntake?.rfq) {
+            isReply = true;
+            replyToRfqId = existingThreadIntake.rfq.id;
+          }
+        }
+
         const intake: NormalizedRfqIntake = {
           sourceType: "email",
           sourceLabel: connector?.label ?? "Gmail",
@@ -121,6 +135,8 @@ export class GmailConnectorService implements ConnectorService {
           gmailThreadId: msg.threadId,
           ...(connector ? { connectorId: connector.id } : {}),
           attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
+          isReply,
+          replyToRfqId,
         };
 
         const detail = await this.rfqIntakeService.classifyAndIntake(intake);

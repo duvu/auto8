@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
+import { LlmService } from "../llm/llm.service";
 import type { RfqExtractedItemView, RfqItemMatchView, RfqMatchGroupView } from "@auto8/shared";
 
 function serializeMatch(match: {
@@ -20,6 +22,8 @@ function serializeMatch(match: {
     unit: string | null;
     basePrice: number | null;
     currency: string;
+    defaultMarkup?: number;
+    categoryTags?: string[];
     isActive: boolean;
     createdAt: Date;
   } | null;
@@ -37,6 +41,8 @@ function serializeMatch(match: {
           unit: match.product.unit,
           basePrice: match.product.basePrice,
           currency: match.product.currency,
+          defaultMarkup: match.product.defaultMarkup ?? 0,
+          categoryTags: match.product.categoryTags ?? [],
           isActive: match.product.isActive,
           createdAt: match.product.createdAt.toISOString(),
         }
@@ -51,7 +57,44 @@ function serializeMatch(match: {
 
 @Injectable()
 export class ItemMatchingService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ItemMatchingService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly llmService: LlmService | null,
+    @Optional() private readonly configService: ConfigService | null,
+  ) {}
+
+  private get similarityThreshold(): number {
+    return parseFloat(
+      this.configService?.get<string>("EMBEDDING_SIMILARITY_THRESHOLD") ?? "0.75"
+    );
+  }
+
+  private async vectorSearch(
+    queryText: string,
+    limit: number,
+  ): Promise<Array<{ productId: string; score: number }>> {
+    if (!this.llmService) return [];
+    const embedding = await this.llmService.embedText(queryText);
+    if (!embedding) return [];
+
+    const threshold = this.similarityThreshold;
+    const vectorLiteral = `[${embedding.join(",")}]`;
+
+    type VectorRow = { id: string; similarity: number };
+    const rows = await this.prisma.$queryRaw<VectorRow[]>`
+      SELECT id, (1 - (embedding <=> ${vectorLiteral}::vector)) AS similarity
+      FROM "public"."Product"
+      WHERE "isActive" = true
+        AND embedding IS NOT NULL
+        AND (1 - (embedding <=> ${vectorLiteral}::vector)) >= ${threshold}
+      ORDER BY similarity DESC
+      LIMIT ${limit}
+    `;
+
+    return rows.map((r) => ({ productId: r.id, score: r.similarity }));
+  }
 
   async matchItemsForRfq(rfqId: string): Promise<void> {
     const rfq = await this.prisma.rfq.findUnique({
@@ -62,7 +105,6 @@ export class ItemMatchingService {
     if (!rfq) throw new NotFoundException("RFQ not found.");
     if (!rfq.extractedItems || rfq.extractedItems.length === 0) return;
 
-    // Load all active products for matching
     const products = await this.prisma.product.findMany({
       where: { isActive: true },
     });
@@ -70,40 +112,39 @@ export class ItemMatchingService {
     if (products.length === 0) return;
 
     for (const item of rfq.extractedItems) {
-      // Skip if matches already exist for this item
       const existingCount = await this.prisma.rfqItemMatch.count({
         where: { rfqExtractedItemId: item.id },
       });
       if (existingCount > 0) continue;
 
-      // Tokenize description for keyword matching
-      const tokens = (item.description ?? item.partNumber ?? "")
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((t) => t.length > 2);
+      const queryText = item.description ?? item.partNumber ?? "";
+      if (!queryText) continue;
 
-      if (tokens.length === 0) continue;
+      let top3: Array<{ productId: string; score: number }> = [];
 
-      // Score each product using term overlap
-      const scored: Array<{ productId: string; score: number }> = [];
-      for (const product of products) {
-        const searchText = [
-          product.productName,
-          product.productCode,
-          product.description ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
+      const vectorResults = await this.vectorSearch(queryText, 3).catch(() => []);
+      if (vectorResults.length > 0) {
+        top3 = vectorResults;
+        this.logger.debug(`Vector search for "${queryText}" → ${top3.length} hits`);
+      } else {
+        const tokens = queryText
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((t) => t.length > 2);
 
-        const matchedTokens = tokens.filter((t) => searchText.includes(t));
-        if (matchedTokens.length === 0) continue;
+        if (tokens.length === 0) continue;
 
-        const score = matchedTokens.length / tokens.length;
-        scored.push({ productId: product.id, score });
+        const scored: Array<{ productId: string; score: number }> = [];
+        for (const product of products) {
+          const searchText = [product.productName, product.productCode, product.description ?? ""]
+            .join(" ")
+            .toLowerCase();
+          const matchedTokens = tokens.filter((t) => searchText.includes(t));
+          if (matchedTokens.length === 0) continue;
+          scored.push({ productId: product.id, score: matchedTokens.length / tokens.length });
+        }
+        top3 = scored.sort((a, b) => b.score - a.score).slice(0, 3);
       }
-
-      // Take top 3 candidates
-      const top3 = scored.sort((a, b) => b.score - a.score).slice(0, 3);
 
       if (top3.length > 0) {
         await this.prisma.rfqItemMatch.createMany({
@@ -136,22 +177,23 @@ export class ItemMatchingService {
     if (!rfq) throw new NotFoundException("RFQ not found.");
 
     return (rfq.extractedItems ?? []).map((item) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const i = item as any;
+      const i = item as unknown as Record<string, unknown>;
       const extractedItem: RfqExtractedItemView = {
-        id: i.id,
+        id: i.id as string,
         rfqId,
-        partNumber: i.partNumber ?? null,
-        description: i.description ?? "",
-        quantity: i.quantity ?? null,
-        unit: i.unit ?? null,
-        confidence: i.confidence ?? null,
-        confidenceReason: i.confidenceReason ?? null,
+        partNumber: (i.partNumber as string | null) ?? null,
+        description: (i.description as string) ?? "",
+        quantity: (i.quantity as number | null) ?? null,
+        unit: (i.unit as string | null) ?? null,
+        confidence: (i.confidence as number) ?? 0,
+        confidenceReason: (i.confidenceReason as string | null) ?? null,
         createdAt: (i.createdAt as Date).toISOString(),
       };
       return {
         extractedItem,
-        matches: (i.matches ?? []).map(serializeMatch),
+        matches: ((i.matches as unknown[]) ?? []).map(
+          serializeMatch as (m: unknown) => RfqItemMatchView
+        ),
       };
     });
   }

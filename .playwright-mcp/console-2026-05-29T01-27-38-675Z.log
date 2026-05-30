@@ -1,0 +1,4 @@
+[     646ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4000/api/auth/me:0
+[     650ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4000/api/rfqs?isRfq=true:0
+[     650ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4000/api/rfqs?isRfq=false:0
+[     770ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://auto8.x51.vn/rfqs?_rsc=5CB68i4pnAekjehf:0

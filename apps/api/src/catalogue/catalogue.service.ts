@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import * as XLSX from "xlsx";
 import { PrismaService } from "../prisma/prisma.service";
@@ -17,6 +20,7 @@ import type {
 } from "@auto8/shared";
 import { buildPaginatedResponse } from "../common/utils/paginate";
 import { CreateProductDto } from "./dto/create-product.dto";
+import { JobsService } from "../jobs/jobs.service";
 
 function serializeProduct(p: {
   id: string;
@@ -27,6 +31,8 @@ function serializeProduct(p: {
   unit: string | null;
   basePrice: number | null;
   currency: string;
+  defaultMarkup?: number;
+  categoryTags?: string[];
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +46,8 @@ function serializeProduct(p: {
     unit: p.unit,
     basePrice: p.basePrice,
     currency: p.currency,
+    defaultMarkup: p.defaultMarkup ?? 0,
+    categoryTags: p.categoryTags ?? [],
     isActive: p.isActive,
     createdAt: p.createdAt.toISOString(),
   };
@@ -49,7 +57,15 @@ function serializeProduct(p: {
 export class CatalogueService {
   private readonly logger = new Logger(CatalogueService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly jobsService?: JobsService,
+  ) {}
+
+  async enqueueEmbeddingJob(catalogueId?: string): Promise<void> {
+    if (!this.jobsService) return;
+    await this.jobsService.enqueue("generate_embeddings", catalogueId ? { catalogueId } : {});
+  }
 
   async upload(file: Express.Multer.File): Promise<CatalogueUploadResult> {
     const defaultCatalogue = await this.prisma.productCatalogue.upsert({
@@ -116,6 +132,12 @@ export class CatalogueService {
                   : Number(row["basePrice"])
                 : null,
             currency: row["currency"] ? String(row["currency"]) : "USD",
+            defaultMarkup:
+              row["defaultMarkup"] !== undefined
+                ? isNaN(Number(row["defaultMarkup"]))
+                  ? 0
+                  : Number(row["defaultMarkup"])
+                : 0,
           },
           update: {
             productName,
@@ -124,6 +146,7 @@ export class CatalogueService {
             unit: row["unit"] ? String(row["unit"]) : undefined,
             basePrice: row["basePrice"] !== undefined ? Number(row["basePrice"]) : undefined,
             currency: row["currency"] ? String(row["currency"]) : undefined,
+            ...(row["defaultMarkup"] !== undefined && { defaultMarkup: Number(row["defaultMarkup"]) }),
           },
         });
         imported++;
@@ -135,6 +158,9 @@ export class CatalogueService {
     }
 
     this.logger.log(`Catalogue upload: imported=${imported}, skipped=${skipped}`);
+    if (imported > 0) {
+      await this.enqueueEmbeddingJob(defaultCatalogue.id);
+    }
     return { imported, skipped, errors };
   }
 
@@ -266,6 +292,7 @@ export class CatalogueService {
         unit: dto.unit ?? null,
         basePrice: dto.basePrice ?? null,
         currency: dto.currency ?? "USD",
+        ...(dto.defaultMarkup !== undefined && { defaultMarkup: dto.defaultMarkup }),
       },
     });
     return serializeProduct(product);
@@ -285,6 +312,7 @@ export class CatalogueService {
         unit: dto.unit ?? null,
         basePrice: dto.basePrice ?? null,
         currency: dto.currency ?? "USD",
+        ...(dto.defaultMarkup !== undefined && { defaultMarkup: dto.defaultMarkup }),
       },
     });
     return serializeProduct(updated);
@@ -332,12 +360,23 @@ export class CatalogueService {
       unit: string;
       basePrice: number;
       currency: string;
+      defaultMarkup: number;
       isActive: boolean;
     }>
   ): Promise<ProductView> {
     const existing = await this.prisma.product.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException(`Product ${id} not found`);
     const updated = await this.prisma.product.update({ where: { id }, data });
+    return serializeProduct(updated);
+  }
+
+  async updateMarkup(id: string, defaultMarkup: number): Promise<ProductView> {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException(`Product ${id} not found`);
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { defaultMarkup },
+    });
     return serializeProduct(updated);
   }
 

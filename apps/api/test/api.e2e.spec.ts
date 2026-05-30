@@ -46,6 +46,10 @@ describe("auto8 RFQ workflow API", () => {
       env: process.env,
       stdio: "ignore"
     });
+    execSync(
+      `psql "${process.env.DATABASE_URL ?? "postgresql://auto8:auto8@localhost:5432/auto8"}" -c "CREATE EXTENSION IF NOT EXISTS vector;"`,
+      { stdio: "ignore" },
+    );
 
     app = await createApp();
     await app.init();

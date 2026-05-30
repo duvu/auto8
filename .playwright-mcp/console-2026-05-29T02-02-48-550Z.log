@@ -1,0 +1,3 @@
+[     443ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://auto8.x51.vn/login:0
+[     717ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://auto8.x51.vn/rfqs?_rsc=_H_fFy2_Q06N8BA7:0
+[   16037ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://auto8.x51.vn/rfqs?_rsc=5CB68i4pnAekjehf:0

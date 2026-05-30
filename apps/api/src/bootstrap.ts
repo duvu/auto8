@@ -1,6 +1,6 @@
 import cookieParser from "cookie-parser";
 
-import { ValidationPipe } from "@nestjs/common";
+import { I18nValidationPipe } from "nestjs-i18n";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
@@ -31,7 +31,7 @@ export async function createApp() {
 
   app.setGlobalPrefix("api");
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
+    new I18nValidationPipe({ whitelist: true, transform: true }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 

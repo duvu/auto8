@@ -4,22 +4,36 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
-import type { GenerateQuoteResult, QuoteLineItemInput, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
-import { calcQuoteTotals } from "@auto8/shared";
+import type { CustomerView, GenerateQuoteResult, QuoteLineItemInput, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
+import { SUPPORTED_CURRENCIES, calcQuoteTotals } from "@auto8/shared";
 
 import { WorkspaceShell } from "../../../components/workspace-shell";
 import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
 import { MatchReviewPanel } from "../../../components/MatchReviewPanel";
 import { QuoteEmailTab } from "../../../components/QuoteEmailTab";
-import { approveQuote, fetchRfqDetail, generateQuote, getExtractedCustomer, getExtractedItems, saveDraftQuote, submitQuote } from "../../../lib/api";
-import { useAuthUser } from "../../../lib/use-auth-user";
+import { approveQuote, assignRfq, fetchRfqDetail, generateQuote, getCustomers, getExtractedCustomer, getExtractedItems, getQuoteRevisions, getQuoteTemplates, getUsers, reviseQuote, saveDraftQuote, saveCustomerFromRfq, submitQuote, getRfqReplies } from "../../../lib/api";
+
+type ReplyItem = {
+  id: string;
+  subject: string | null;
+  senderName: string | null;
+  body: string | null;
+  receivedAt: string;
+};
+import { useRequireAuth } from "../../../lib/use-require-auth";
 import { formatState } from "../../../lib/format";
+
+type UserOption = { id: string; name: string };
+type RevisionItem = { id: string; version: number; status: string; createdAt: string; parentQuoteId: string | null };
 
 function buildDraft(detail: RfqDetailView | null, extractedCustomer?: RfqExtractedCustomerView | null): SaveQuoteInput {
   return {
     customerName: detail?.quote?.customerName ?? extractedCustomer?.customerContact ?? detail?.senderName ?? detail?.senderEmail ?? detail?.sourceLabel ?? "",
     customerCompany: detail?.quote?.customerCompany ?? extractedCustomer?.customerCompany ?? "",
     notes: detail?.quote?.notes ?? "",
+    currency: detail?.quote?.currency ?? "USD",
+    exchangeRate: detail?.quote?.exchangeRate ?? 1,
+    customerId: detail?.quote?.customerId ?? undefined,
     lineItems:
       detail?.quote?.lineItems.map((item) => ({
         description: item.description,
@@ -42,6 +56,8 @@ export default function RfqDetailPage() {
   const rfqId = String(params.rfqId);
   const [detail, setDetail] = useState<RfqDetailView | null>(null);
   const [extractedItems, setExtractedItems] = useState<RfqExtractedItemView[]>([]);
+  const [replies, setReplies] = useState<ReplyItem[]>([]);
+  const [repliesExpanded, setRepliesExpanded] = useState(false);
   const [extractedCustomer, setExtractedCustomer] = useState<RfqExtractedCustomerView | null>(null);
   const [draft, setDraft] = useState<SaveQuoteInput>(buildDraft(null));
   const [loading, setLoading] = useState(true);
@@ -51,20 +67,40 @@ export default function RfqDetailPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"quote" | "email">("quote");
 
-  const authUser = useAuthUser();
+  const [templates, setTemplates] = useState<QuoteTemplateView[]>([]);
+  const [customers, setCustomers] = useState<CustomerView[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [revisions, setRevisions] = useState<RevisionItem[]>([]);
+  const [revisionsOpen, setRevisionsOpen] = useState(false);
+  const [revising, setRevising] = useState(false);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [assigningRfq, setAssigningRfq] = useState(false);
+
+  const authResult = useRequireAuth();
+  const authUser = authResult?.forbidden === false ? authResult.user : null;
+  const isAdmin = authUser?.role === "admin";
 
   useEffect(() => {
     async function load() {
       try {
-        const [nextDetail, nextExtractedItems, nextExtractedCustomer] = await Promise.all([
+        const [nextDetail, nextExtractedItems, nextExtractedCustomer, templatesRes, customersRes, usersRes, nextReplies] = await Promise.all([
           fetchRfqDetail(rfqId),
           getExtractedItems(rfqId),
           getExtractedCustomer(rfqId),
+          getQuoteTemplates(undefined, 1, 50),
+          getCustomers(undefined, 1, 100),
+          getUsers(1, 100),
+          getRfqReplies(rfqId).catch(() => [] as ReplyItem[]),
         ]);
         setDetail(nextDetail);
         setExtractedItems(nextExtractedItems);
         setExtractedCustomer(nextExtractedCustomer);
+        setReplies(nextReplies);
         setDraft(buildDraft(nextDetail, nextExtractedCustomer));
+        setTemplates(templatesRes.data);
+        setCustomers(customersRes.data);
+        setUsers(usersRes.data.map((u) => ({ id: u.id, name: u.name })));
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load RFQ detail.");
       } finally {
@@ -131,6 +167,80 @@ export default function RfqDetailPage() {
     }));
   }
 
+  function applyTemplate(templateId: string) {
+    const tpl = templates.find((t) => t.id === templateId);
+    if (!tpl) return;
+    setDraft((current) => ({
+      ...current,
+      templateId,
+      currency: tpl.currency,
+      lineItems: tpl.lineItems.length > 0
+        ? tpl.lineItems.map((li) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice }))
+        : current.lineItems,
+    }));
+  }
+
+  async function handleSaveCustomer() {
+    setSavingCustomer(true);
+    setError(null);
+    try {
+      const saved = await saveCustomerFromRfq(rfqId);
+      setCustomers((prev) => [...prev, saved]);
+      setDraft((current) => ({ ...current, customerId: saved.id }));
+      setSuccessMessage("Customer saved to address book.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save customer");
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
+
+  async function handleRevise() {
+    if (!detail?.quote) return;
+    setRevising(true);
+    setError(null);
+    try {
+      await reviseQuote(rfqId, detail.quote.id);
+      const [nextDetail, nextRevisions] = await Promise.all([
+        fetchRfqDetail(rfqId),
+        getQuoteRevisions(rfqId),
+      ]);
+      setDetail(nextDetail);
+      setDraft(buildDraft(nextDetail));
+      setRevisions(nextRevisions);
+      setSuccessMessage("New revision created. Edit and submit the new draft.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to revise quote");
+    } finally {
+      setRevising(false);
+    }
+  }
+
+  async function handleLoadRevisions() {
+    try {
+      const nextRevisions = await getQuoteRevisions(rfqId);
+      setRevisions(nextRevisions);
+      setRevisionsOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load revisions");
+    }
+  }
+
+  async function handleAssign(assignedToId: string) {
+    setAssigningRfq(true);
+    setError(null);
+    try {
+      await assignRfq(rfqId, assignedToId || null);
+      const nextDetail = await fetchRfqDetail(rfqId);
+      setDetail(nextDetail);
+      setSuccessMessage("RFQ assigned.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to assign RFQ");
+    } finally {
+      setAssigningRfq(false);
+    }
+  }
+
   async function refreshDetail() {
     const nextDetail = await fetchRfqDetail(rfqId);
     setDetail(nextDetail);
@@ -192,6 +302,7 @@ export default function RfqDetailPage() {
       title={`${detail.reference} / Quote Workspace`}
       description="Review inbound RFQ details, maintain the draft quote, and run the approval handoff without leaving the workflow regardless of source."
       authUser={authUser}
+      section="RFQs"
     >
       {error ? <div className="error">{error}</div> : null}
       {successMessage ? <div className="success-banner">{successMessage}</div> : null}
@@ -265,6 +376,33 @@ export default function RfqDetailPage() {
               <div className="meta">Received</div>
               <div>{new Date(detail.receivedAt).toLocaleString()}</div>
             </div>
+            {detail.expectedResponseBy && (
+              <div>
+                <div className="meta">Due by</div>
+                <div className={detail.slaBreached ? "text-red-600 font-semibold" : ""}>
+                  {new Date(detail.expectedResponseBy).toLocaleString()}
+                  {detail.slaBreached && <span className="badge ml-2" style={{ background: "var(--red)", color: "#fff", marginLeft: 6 }}>Overdue</span>}
+                </div>
+              </div>
+            )}
+            <div>
+              <div className="meta">Assigned to</div>
+              {isAdmin ? (
+                <select
+                  disabled={assigningRfq}
+                  value={detail.assignedToId ?? ""}
+                  onChange={(e) => void handleAssign(e.target.value)}
+                  style={{ fontSize: 13, padding: "2px 4px" }}
+                >
+                  <option value="">— Unassigned —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div>{detail.assignedToName ?? "Unassigned"}</div>
+              )}
+            </div>
           </div>
 
           {detail.sourceType === "slack" ? (
@@ -315,6 +453,14 @@ export default function RfqDetailPage() {
                   <div><span className="meta">Deadline: </span>{extractedCustomer.requestedDeadline}</div>
                 )}
               </div>
+              <button
+                type="button"
+                disabled={savingCustomer}
+                onClick={() => void handleSaveCustomer()}
+                className="mt-2 text-xs btn btn-secondary"
+              >
+                {savingCustomer ? "Saving…" : "Save to Address Book"}
+              </button>
             </div>
           )}
         </article>
@@ -337,6 +483,31 @@ export default function RfqDetailPage() {
             ))}
             {!detail.history.length ? <div className="empty">No quote status events yet.</div> : null}
           </div>
+          {detail.quote?.parentQuoteId && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="button-ghost"
+                onClick={() => void handleLoadRevisions()}
+                style={{ fontSize: 12 }}
+              >
+                {revisionsOpen ? "Hide" : "Show"} revision history
+              </button>
+              {revisionsOpen && revisions.length > 0 && (
+                <div className="timeline" style={{ marginTop: 8 }}>
+                  {revisions.map((rev) => (
+                    <div className="timeline-card" key={rev.id} style={{ fontSize: 12 }}>
+                      <div className="history-line">
+                        <span className="badge dark">v{rev.version}</span>
+                        <span className={`badge ${rev.status === "approved" ? "success" : ""}`}>{formatState(rev.status)}</span>
+                      </div>
+                      <div className="meta">{rev.id}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </aside>
       </section>
 
@@ -360,6 +531,59 @@ export default function RfqDetailPage() {
         </div>
 
         <div className="field-grid">
+          <label>
+            Template
+            <select
+              disabled={quoteLocked}
+              value={draft.templateId ?? ""}
+              onChange={(e) => { if (e.target.value) applyTemplate(e.target.value); }}
+            >
+              <option value="">— None —</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Customer
+            <select
+              disabled={quoteLocked}
+              value={draft.customerId ?? ""}
+              onChange={(e) => updateDraftField("customerId", e.target.value || undefined)}
+            >
+              <option value="">— None —</option>
+              {customers
+                .filter((c) => !customerSearch || c.companyName.toLowerCase().includes(customerSearch.toLowerCase()))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>{c.companyName}{c.contactName ? ` (${c.contactName})` : ""}</option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Currency
+            <select
+              disabled={quoteLocked}
+              value={draft.currency ?? "USD"}
+              onChange={(e) => updateDraftField("currency", e.target.value)}
+            >
+              {SUPPORTED_CURRENCIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          {draft.currency && draft.currency !== "USD" && (
+            <label>
+              Exchange Rate (to USD)
+              <input
+                disabled={quoteLocked}
+                type="number"
+                min={0.0001}
+                step={0.0001}
+                value={draft.exchangeRate ?? 1}
+                onChange={(e) => updateDraftField("exchangeRate", parseFloat(e.target.value) || 1)}
+              />
+            </label>
+          )}
           <label>
             Customer name
             <input
@@ -391,7 +615,11 @@ export default function RfqDetailPage() {
             </button>
           </div>
 
-          {draft.lineItems.map((item, index) => (
+          {draft.lineItems.map((item, index) => {
+            const savedLineItem = detail.quote?.lineItems[index];
+            const suggestedPrice = savedLineItem?.suggestedPrice ?? null;
+
+            return (
             <div className="line-item-row" key={`${detail.id}-item-${index}`}>
               <label>
                 Description
@@ -419,11 +647,18 @@ export default function RfqDetailPage() {
                   onChange={(event) => updateLineItem(index, "unitPrice", event.target.value)}
                 />
               </label>
+              {suggestedPrice !== null && (
+                <label>
+                  Suggested
+                  <span className="meta" style={{ padding: "6px 0", display: "block" }}>${suggestedPrice.toFixed(2)}</span>
+                </label>
+              )}
               <button className="button-ghost" disabled={quoteLocked || draft.lineItems.length === 1} type="button" onClick={() => removeLineItem(index)}>
                 Remove
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="actions">
@@ -459,10 +694,56 @@ export default function RfqDetailPage() {
           >
             Approve quote
           </button>
+          {detail.quote?.status === "approved" && (
+            <button
+              className="button-secondary"
+              disabled={revising}
+              type="button"
+              onClick={() => void handleRevise()}
+            >
+              {revising ? "Creating revision..." : "Revise quote (new draft)"}
+            </button>
+          )}
         </div>
       </section>
       </>
       )}
+
+      <section className="panel" style={{ marginTop: "24px" }}>
+        <div 
+          className="panel-header" 
+          style={{ cursor: "pointer" }} 
+          onClick={() => setRepliesExpanded(!repliesExpanded)}
+        >
+          <div className="stack">
+            <h2>Reply Threads {replies.length > 0 ? `(${replies.length})` : ""}</h2>
+            <p className="panel-subtitle">Messages related to this RFQ.</p>
+          </div>
+          <button type="button" className="button-ghost">{repliesExpanded ? "Hide" : "Show"}</button>
+        </div>
+        {repliesExpanded && (
+          <div style={{ marginTop: "16px" }}>
+            {replies.length === 0 ? (
+              <p className="hint">No reply threads.</p>
+            ) : (
+              <div className="stack" style={{ gap: "16px", display: "flex", flexDirection: "column" }}>
+                {replies.map(r => (
+                  <div key={r.id} style={{ border: "1px solid var(--border)", padding: "12px", borderRadius: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                      <strong>{r.subject || "No subject"}</strong>
+                      <span className="meta">{new Date(r.receivedAt).toLocaleString()}</span>
+                    </div>
+                    <div className="meta" style={{ marginBottom: "8px" }}>From: {r.senderName || "Unknown"}</div>
+                    <div style={{ whiteSpace: "pre-wrap", fontSize: "0.875rem", color: "var(--ink)", background: "var(--surface)", padding: "8px", borderRadius: "4px" }}>
+                      {r.body || "No content"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
     </WorkspaceShell>
   );
 }

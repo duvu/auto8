@@ -1,0 +1,5 @@
+[      50ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3002/login:0
+[     204ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/rfqs?_rsc=_H_fFy2_Q06N8BA7:0
+[     210ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3002/favicon.ico:0
+[   15503ms] [ERROR] Access to fetch at 'https://auto8.x51.vn/api/auth/login' from origin 'http://localhost:3002' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/login:0
+[   15504ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://auto8.x51.vn/api/auth/login:0

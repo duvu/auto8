@@ -1,6 +1,8 @@
 import "reflect-metadata";
 
-process.loadEnvFile?.();
+if (process.env.NODE_ENV !== "production") {
+  process.loadEnvFile?.();
+}
 
 import { Logger } from "@nestjs/common";
 import { createApp } from "./bootstrap";

@@ -8,6 +8,7 @@ import { MatchingModule } from "../matching/matching.module";
 import { SheetExportModule } from "../sheet-export/sheet-export.module";
 import { AuditModule } from "../audit/audit.module";
 import { RfqsModule } from "../rfqs/rfqs.module";
+import { LlmModule } from "../llm/llm.module";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { RfqsModule } from "../rfqs/rfqs.module";
     MatchingModule,
     SheetExportModule,
     AuditModule,
+    LlmModule,
     forwardRef(() => RfqsModule),
   ],
   controllers: [JobsController],

@@ -17,7 +17,10 @@ import { SmartEmailGenerationService } from "./smart-email-generation.service";
 @Injectable()
 export class QuoteEmailService {
   private readonly logger = new Logger(QuoteEmailService.name);
-  private transport: Transporter | null = null;
+
+  webhookEmitter?: { emit(event: string, payload: Record<string, unknown>): Promise<void> };
+
+  private transport?: Transporter;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -190,6 +193,9 @@ export class QuoteEmailService {
 
       const sendResult = this.serializeSend(send);
       this.auditService.log({ actorId, action: 'quote_email.send', resourceType: 'quote_email', resourceId: quoteId, after: { status: 'sent', recipient: email.recipientEmail } });
+      this.webhookEmitter?.emit("quote.sent", { quoteId }).catch((err: unknown) =>
+        this.logger.error("Failed to emit quote.sent webhook", err),
+      );
       return sendResult;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

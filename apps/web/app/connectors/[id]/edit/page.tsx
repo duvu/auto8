@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import type { ConnectorView } from "@auto8/shared";
 
 import { getConnector, updateConnector } from "../../../../lib/api";
+import { WorkspaceShell } from "../../../../components/workspace-shell";
+import { useRequireAuth } from "../../../../lib/use-require-auth";
 
 export default function EditConnectorPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -16,6 +18,8 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const authResult = useRequireAuth("admin");
 
   useEffect(() => {
     void loadConnector();
@@ -69,53 +73,61 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
     }
   }
 
-  if (loading) {
-    return <main className="page"><section className="panel">Loading connector...</section></main>;
-  }
+  if (!authResult) return null;
+  if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
-  if (!connector) {
-    return <main className="page"><section className="panel error">Connector not found.</section></main>;
-  }
+  if (loading) return (
+    <WorkspaceShell title="Edit Connector" description="" authUser={authResult.user} section="Connectors">
+      <div className="p-6 text-gray-500">Loading connector...</div>
+    </WorkspaceShell>
+  );
+
+  if (!connector) return (
+    <WorkspaceShell title="Edit Connector" description="" authUser={authResult.user} section="Connectors">
+      <div className="p-6 text-red-600">Connector not found.</div>
+    </WorkspaceShell>
+  );
 
   return (
-    <main className="page">
-      <section className="hero">
-        <div className="eyebrow">auto8 / Admin / Connectors</div>
-        <h1>Edit Connector</h1>
-        <p className="panel-subtitle">{connector.type} — {connector.id}</p>
-      </section>
+    <WorkspaceShell
+      title="Edit Connector"
+      description={`${connector.type} — ${connector.id}`}
+      authUser={authResult.user}
+      section="Connectors"
+    >
+      <div className="max-w-2xl mx-auto">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
+        )}
 
-      {error && <div className="error">{error}</div>}
-
-      <section className="panel">
-        <form onSubmit={(e) => void handleSave(e)} style={{ display: "flex", flexDirection: "column", gap: "16px", maxWidth: "560px" }}>
+        <form onSubmit={(e) => void handleSave(e)} className="space-y-4">
           <div>
-            <label htmlFor="label" style={{ display: "block", fontWeight: 600, marginBottom: "4px" }}>Label</label>
+            <label htmlFor="label" className="block text-sm font-medium mb-1">Label</label>
             <input
               id="label"
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               required
-              style={{ width: "100%", padding: "8px", border: "1px solid #e2e8f0", borderRadius: "4px", fontSize: "14px" }}
+              className="w-full border rounded px-3 py-2 text-sm"
             />
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div className="flex items-center gap-2">
             <input
               id="isEnabled"
               type="checkbox"
               checked={isEnabled}
               onChange={(e) => setIsEnabled(e.target.checked)}
             />
-            <label htmlFor="isEnabled">Enabled</label>
+            <label htmlFor="isEnabled" className="text-sm">Enabled</label>
           </div>
 
           <div>
-            <label htmlFor="credentials" style={{ display: "block", fontWeight: 600, marginBottom: "4px" }}>
+            <label htmlFor="credentials" className="block text-sm font-medium mb-1">
               Credentials (JSON)
             </label>
-            <p style={{ fontSize: "12px", color: "#666", margin: "0 0 4px" }}>
+            <p className="text-xs text-gray-500 mb-1">
               Leave as <code>{"{}"}</code> to keep existing credentials unchanged.
             </p>
             <textarea
@@ -123,24 +135,24 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
               value={credentials}
               onChange={(e) => setCredentials(e.target.value)}
               rows={8}
-              style={{ width: "100%", padding: "8px", border: "1px solid #e2e8f0", borderRadius: "4px", fontSize: "13px", fontFamily: "monospace" }}
+              className="w-full border rounded px-3 py-2 text-sm font-mono"
             />
           </div>
 
-          <div className="badge-row">
-            <button type="submit" className="button" disabled={saving}>
+          <div className="flex gap-3">
+            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50" disabled={saving}>
               {saving ? "Saving..." : "Save"}
             </button>
             <button
               type="button"
-              className="button-ghost"
+              className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
               onClick={() => router.push("/connectors")}
             >
               Cancel
             </button>
           </div>
         </form>
-      </section>
-    </main>
+      </div>
+    </WorkspaceShell>
   );
 }

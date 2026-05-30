@@ -1,12 +1,10 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: auto8
       POSTGRES_PASSWORD: auto8
       POSTGRES_DB: auto8
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -30,6 +28,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://auto8.x51.vn
+    ports:
+      - "3002:3000"
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:

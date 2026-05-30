@@ -35,4 +35,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  defaultMarkup?: number;
 }

@@ -1,0 +1,82 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - link "auto8" [ref=e3] [cursor=pointer]:
+      - /url: /
+    - link "RFQs" [ref=e4] [cursor=pointer]:
+      - /url: /rfqs
+    - link "Audit Logs" [ref=e5] [cursor=pointer]:
+      - /url: /audit
+    - link "Metrics" [ref=e6] [cursor=pointer]:
+      - /url: /metrics
+  - alert [ref=e21]
+  - main [ref=e22]:
+    - generic [ref=e23]:
+      - generic [ref=e24]: auto8 / RFQs
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - heading "RFQ Intake Dashboard" [level=1] [ref=e27]
+          - paragraph [ref=e28]: Capture inbound RFQs from email or Slack, route them into one queue, and hand them off for draft creation or sales approval.
+        - generic [ref=e29]:
+          - generic [ref=e30]: admin
+          - button "Log out" [ref=e31] [cursor=pointer]
+      - generic [ref=e32]:
+        - generic [ref=e33]: admin
+        - link "Catalogue" [ref=e34] [cursor=pointer]:
+          - /url: /catalogue
+        - link "Jobs" [ref=e35] [cursor=pointer]:
+          - /url: /jobs
+        - link "Connectors" [ref=e36] [cursor=pointer]:
+          - /url: /connectors
+        - link "Manage Users" [ref=e37] [cursor=pointer]:
+          - /url: /users
+        - link "Settings" [ref=e38] [cursor=pointer]:
+          - /url: /settings
+    - generic [ref=e39]:
+      - generic [ref=e40]:
+        - text: Active RFQs
+        - strong [ref=e41]: "0"
+      - generic [ref=e42]:
+        - text: Pending Approval
+        - strong [ref=e43]: "0"
+      - generic [ref=e44]:
+        - text: Approved
+        - strong [ref=e45]: "0"
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - heading "Simulate inbound RFQ email" [level=2] [ref=e49]
+          - paragraph [ref=e50]: Use the normalized email intake contract. Slack uses the signed connector endpoint and appears in the same queue.
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - text: Sender name
+            - textbox "Sender name" [ref=e53]: Alex Buyer
+          - generic [ref=e54]:
+            - text: Sender email
+            - textbox "Sender email" [ref=e55]: buyer@autofleet.example
+        - generic [ref=e56]:
+          - text: Subject
+          - textbox "Subject" [ref=e57]: "RFQ: cabin filters for service inventory"
+        - generic [ref=e58]:
+          - text: Email body
+          - textbox "Email body" [ref=e59]: Please quote 60 cabin filters for next week's service intake.
+        - button "Create RFQ" [ref=e61] [cursor=pointer]
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - heading "RFQ work queue" [level=2] [ref=e64]
+          - paragraph [ref=e65]: Open any RFQ to draft a quote, submit it for approval, or confirm an approved status.
+        - generic [ref=e66]:
+          - button "Active (0)" [ref=e67] [cursor=pointer]
+          - button "Rejected (0)" [ref=e68] [cursor=pointer]
+        - generic [ref=e69]:
+          - generic [ref=e70]: "Pipeline:"
+          - combobox [ref=e71]:
+            - option "All" [selected]
+            - option "classified"
+            - option "needs review"
+            - option "ready for quote"
+            - option "quote draft created"
+            - option "quote submitted"
+            - option "approved"
+            - option "sent"
+            - option "closed"
+        - generic [ref=e73]: No active RFQs.

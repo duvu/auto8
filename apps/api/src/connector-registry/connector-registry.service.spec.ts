@@ -5,6 +5,7 @@ import type { ConnectorView } from "@auto8/shared";
 import { CONNECTOR_TYPES, CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { PluginRegistryService } from "../plugin-registry/plugin-registry.service";
 import { ConnectorRegistryService } from "./connector-registry.service";
 
 const mockConnector = {
@@ -38,6 +39,23 @@ function makeConfig(overrides: Record<string, string | number | undefined> = {})
   return { get: vi.fn((key: string, def?: unknown) => overrides[key] ?? def) };
 }
 
+function makePluginRegistry(plugin?: { serviceToken: string; syncable?: boolean }) {
+  return {
+    getConnectorPlugin: vi.fn().mockReturnValue(plugin ?? null),
+    getAllConnectorPlugins: vi.fn().mockReturnValue([]),
+    getAllWebhookEvents: vi.fn().mockReturnValue([]),
+    getAllManifests: vi.fn().mockReturnValue([]),
+    validate: vi.fn(),
+    register: vi.fn(),
+  } as unknown as PluginRegistryService;
+}
+
+function makeModuleRef(resolvedService?: unknown) {
+  return {
+    get: vi.fn().mockReturnValue(resolvedService ?? null),
+  };
+}
+
 describe("ConnectorRegistryService", () => {
   let service: ConnectorRegistryService;
   let prisma: ReturnType<typeof makePrisma>;
@@ -47,6 +65,8 @@ describe("ConnectorRegistryService", () => {
     service = new ConnectorRegistryService(
       prisma as unknown as PrismaService,
       makeConfig() as never,
+      makePluginRegistry() as never,
+      makeModuleRef() as never,
     );
   });
 
@@ -135,22 +155,46 @@ describe("ConnectorRegistryService", () => {
   describe("syncNow", () => {
     it("throws 422 for slack (push-only)", async () => {
       prisma.connector.findUnique.mockResolvedValue({ ...mockConnector, type: "slack" });
-      await expect(service.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "SlackConnectorService", syncable: false } as never) as never,
+        makeModuleRef() as never,
+      );
+      await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
     });
 
     it("throws 422 for whatsapp (push-only)", async () => {
       prisma.connector.findUnique.mockResolvedValue({ ...mockConnector, type: "whatsapp" });
-      await expect(service.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "WhatsappConnectorService", syncable: false } as never) as never,
+        makeModuleRef() as never,
+      );
+      await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
     });
 
     it("throws 422 for telegram (push-only)", async () => {
       prisma.connector.findUnique.mockResolvedValue({ ...mockConnector, type: "telegram" });
-      await expect(service.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "TelegramConnectorService", syncable: false } as never) as never,
+        makeModuleRef() as never,
+      );
+      await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
     });
 
     it("throws 422 for zalo (push-only)", async () => {
       prisma.connector.findUnique.mockResolvedValue({ ...mockConnector, type: "zalo" });
-      await expect(service.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "ZaloConnectorService", syncable: false } as never) as never,
+        makeModuleRef() as never,
+      );
+      await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
     });
 
     it("throws 422 when connector is disabled", async () => {
@@ -161,48 +205,71 @@ describe("ConnectorRegistryService", () => {
 
   // ── testCredentials ────────────────────────────────────────────────────────
   describe("testCredentials", () => {
-    it("returns error result when no handler registered for type", async () => {
-      // No external services injected on the bare service
+    it("returns error result when no plugin registered for type", async () => {
       const result = await service.testCredentials("gmail", { clientId: "x" });
       expect(result.ok).toBe(false);
       expect(result.error).toContain("No test handler");
     });
 
-    it("delegates to gmailService when injected", async () => {
+    it("delegates to gmail connector service via PluginRegistry", async () => {
       const mockTest = vi.fn().mockResolvedValue({ ok: true });
-      service.gmailService = { testConnector: mockTest, sync: vi.fn() };
-      const result = await service.testCredentials("gmail", { clientId: "x" });
+      const mockConnectorSvc = { testConnector: mockTest, sync: vi.fn() };
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "GmailConnectorService" }) as never,
+        makeModuleRef(mockConnectorSvc) as never,
+      );
+      const result = await svc.testCredentials("gmail", { clientId: "x" });
       expect(result.ok).toBe(true);
       expect(mockTest).toHaveBeenCalledOnce();
     });
 
-    it("delegates to whatsappService when injected", async () => {
+    it("delegates to whatsapp connector service via PluginRegistry", async () => {
       const mockTest = vi.fn().mockResolvedValue({ ok: true });
-      service.whatsappService = { testConnector: mockTest };
-      const result = await service.testCredentials("whatsapp", {});
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "WhatsappConnectorService" }) as never,
+        makeModuleRef({ testConnector: mockTest }) as never,
+      );
+      const result = await svc.testCredentials("whatsapp", {});
       expect(result.ok).toBe(true);
     });
 
-    it("delegates to telegramService when injected", async () => {
+    it("delegates to telegram connector service via PluginRegistry", async () => {
       const mockTest = vi.fn().mockResolvedValue({ ok: true });
-      service.telegramService = { testConnector: mockTest };
-      const result = await service.testCredentials("telegram", {});
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "TelegramConnectorService" }) as never,
+        makeModuleRef({ testConnector: mockTest }) as never,
+      );
+      const result = await svc.testCredentials("telegram", {});
       expect(result.ok).toBe(true);
     });
 
-    it("delegates to zaloService when injected", async () => {
+    it("delegates to zalo connector service via PluginRegistry", async () => {
       const mockTest = vi.fn().mockResolvedValue({ ok: true });
-      service.zaloService = { testConnector: mockTest };
-      const result = await service.testCredentials("zalo", {});
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "ZaloConnectorService" }) as never,
+        makeModuleRef({ testConnector: mockTest }) as never,
+      );
+      const result = await svc.testCredentials("zalo", {});
       expect(result.ok).toBe(true);
     });
 
-    it("returns ok:false when service throws", async () => {
-      service.gmailService = {
-        testConnector: vi.fn().mockRejectedValue(new Error("Auth failed")),
-        sync: vi.fn(),
-      };
-      const result = await service.testCredentials("gmail", {});
+    it("returns ok:false when connector service throws", async () => {
+      const mockTest = vi.fn().mockRejectedValue(new Error("Auth failed"));
+      const svc = new ConnectorRegistryService(
+        prisma as unknown as PrismaService,
+        makeConfig() as never,
+        makePluginRegistry({ serviceToken: "GmailConnectorService" }) as never,
+        makeModuleRef({ testConnector: mockTest, sync: vi.fn() }) as never,
+      );
+      const result = await svc.testCredentials("gmail", {});
       expect(result.ok).toBe(false);
       expect(result.error).toBe("Auth failed");
     });

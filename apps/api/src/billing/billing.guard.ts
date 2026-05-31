@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 
@@ -6,12 +6,22 @@ import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class BillingGuard implements CanActivate {
+  private readonly logger = new Logger(BillingGuard.name);
+  private readonly billingEnabled: boolean;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
-  ) {}
+  ) {
+    this.billingEnabled = process.env['BILLING_ENABLED'] === 'true';
+    if (!this.billingEnabled) {
+      this.logger.warn('[BillingGuard] Billing enforcement is DISABLED (BILLING_ENABLED != true)');
+    }
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (!this.billingEnabled) return true;
+
     const request = context.switchToHttp().getRequest<Request>();
 
     // Skip if public route

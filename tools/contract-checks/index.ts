@@ -89,11 +89,19 @@ for (const t of connectorTypes) {
 // Verify connector-registry.service.ts has routing for all types
 const registryServicePath = join(root, "apps/api/src/connector-registry/connector-registry.service.ts");
 const registrySource = readFileSync(registryServicePath, "utf8");
+
+if (!registrySource.includes("PluginRegistryService") && !registrySource.includes("pluginRegistry")) {
+  fail("connector-registry.service.ts does not use PluginRegistryService for connector dispatch");
+} else {
+  pass("connector-registry.service.ts uses PluginRegistryService for connector dispatch");
+}
+
 for (const t of connectorTypes) {
-  if (!registrySource.includes(`"${t}"`)) {
-    fail(`connector-registry.service.ts has no reference to connector type "${t}"`);
+  const pluginFile = join(root, `apps/api/src/${t}/${t}.plugin.ts`);
+  if (!existsSync(pluginFile)) {
+    fail(`Plugin manifest missing for connector type "${t}": ${pluginFile}`);
   } else {
-    pass(`connector-registry.service.ts references connector type "${t}"`);
+    pass(`Plugin manifest exists for connector type "${t}"`);
   }
 }
 
@@ -167,7 +175,6 @@ const moduleFiles = [
   join(root, "apps/api/src/workspace/workspace.module.ts"),
 ];
 
-// PrismaService must not be redeclared in feature module providers
 for (const modFile of moduleFiles) {
   if (!existsSync(modFile)) {
     fail(`Expected module file not found: ${modFile}`);
@@ -186,6 +193,119 @@ if (!prismaModuleSrc.includes("PrismaService") || !prismaModuleSrc.includes("exp
   fail("prisma.module.ts does not export PrismaService");
 } else {
   pass("prisma.module.ts correctly declares and exports PrismaService");
+}
+
+// ---------------------------------------------------------------------------
+// 6. Plugin manifest validation
+// ---------------------------------------------------------------------------
+
+const pluginTokenMap: Record<string, string> = {
+  gmail: "GmailConnectorService",
+  slack: "SlackConnectorService",
+  outlook: "OutlookConnectorService",
+  whatsapp: "WhatsappConnectorService",
+  telegram: "TelegramConnectorService",
+  zalo: "ZaloConnectorService",
+};
+
+for (const t of connectorTypes) {
+  const moduleDir = join(root, `apps/api/src/${t}`);
+  const pluginFile = join(moduleDir, `${t}.plugin.ts`);
+  if (!existsSync(pluginFile)) {
+    fail(`Plugin manifest missing: ${pluginFile}`);
+  } else {
+    const src = readFileSync(pluginFile, "utf8");
+    const expectedToken = pluginTokenMap[t];
+    if (expectedToken && !src.includes(expectedToken)) {
+      fail(`${t}.plugin.ts does not declare serviceToken "${expectedToken}"`);
+    } else {
+      pass(`Plugin manifest exists for connector type "${t}"`);
+    }
+  }
+}
+
+const appModuleSrc = readFileSync(join(root, "apps/api/src/app.module.ts"), "utf8");
+if (!appModuleSrc.includes("PluginRegistryModule.register")) {
+  fail("app.module.ts does not call PluginRegistryModule.register()");
+} else {
+  pass("app.module.ts uses PluginRegistryModule.register() for plugin composition");
+}
+
+for (const t of connectorTypes) {
+  const capitalised = t.charAt(0).toUpperCase() + t.slice(1);
+  const pluginIdentifier = `${capitalised}Plugin`;
+  if (!appModuleSrc.includes(pluginIdentifier)) {
+    fail(`app.module.ts does not register plugin "${pluginIdentifier}" for connector type "${t}"`);
+  } else {
+    pass(`app.module.ts registers "${pluginIdentifier}"`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 7. Plugin architecture hardening checks
+// ---------------------------------------------------------------------------
+
+// 7.1 Each connector plugin file must declare syncable: boolean
+const syncableConnectors = { gmail: true, outlook: true, slack: false, whatsapp: false, telegram: false, zalo: false };
+for (const [t, expectedSyncable] of Object.entries(syncableConnectors)) {
+  const pluginFile = join(root, `apps/api/src/${t}/${t}.plugin.ts`);
+  if (existsSync(pluginFile)) {
+    const src = readFileSync(pluginFile, "utf8");
+    if (!src.includes("syncable:")) {
+      fail(`${t}.plugin.ts does not declare "syncable:" field`);
+    } else {
+      const hasSyncableTrue = src.includes("syncable: true");
+      const hasSyncableFalse = src.includes("syncable: false");
+      if (expectedSyncable && !hasSyncableTrue) {
+        fail(`${t}.plugin.ts should have "syncable: true" (supports sync)`);
+      } else if (!expectedSyncable && !hasSyncableFalse) {
+        fail(`${t}.plugin.ts should have "syncable: false" (push-only)`);
+      } else {
+        pass(`${t}.plugin.ts has correct syncable: ${String(expectedSyncable)}`);
+      }
+    }
+  }
+}
+
+// 7.2 WEBHOOK_EMITTER_TOKEN must be exported from webhook-emitter.service.ts
+const webhookEmitterPath = join(root, "apps/api/src/webhooks/webhook-emitter.service.ts");
+if (existsSync(webhookEmitterPath)) {
+  const src = readFileSync(webhookEmitterPath, "utf8");
+  if (!src.includes("export const WEBHOOK_EMITTER_TOKEN")) {
+    fail("webhook-emitter.service.ts does not export WEBHOOK_EMITTER_TOKEN");
+  } else {
+    pass("webhook-emitter.service.ts exports WEBHOOK_EMITTER_TOKEN");
+  }
+}
+
+// 7.3 No optional webhookEmitter? property declarations in services (must use constructor injection)
+const BANNED_PROPERTY_INJECTION = [
+  "webhookEmitter?:",
+];
+const serviceFiles = [
+  join(root, "apps/api/src/rfqs/rfq-intake.service.ts"),
+  join(root, "apps/api/src/rfqs/quote-workflow.service.ts"),
+  join(root, "apps/api/src/quote-email/quote-email.service.ts"),
+];
+for (const svcFile of serviceFiles) {
+  if (existsSync(svcFile)) {
+    const src = readFileSync(svcFile, "utf8");
+    const hasBanned = BANNED_PROPERTY_INJECTION.some((pattern) => src.includes(pattern));
+    if (hasBanned) {
+      fail(`${svcFile.replace(root + "/", "")}: still uses optional webhookEmitter? property injection (migrate to @Inject(WEBHOOK_EMITTER_TOKEN))`);
+    } else {
+      pass(`${svcFile.replace(root + "/", "")}: uses constructor injection for webhookEmitter`);
+    }
+  }
+}
+
+// 7.4 syncNow() must not use hardcoded push-only connector type list
+const registrySvcSrc = readFileSync(join(root, "apps/api/src/connector-registry/connector-registry.service.ts"), "utf8");
+const hardcodedPushOnly = /connector\.type\s*===\s*["']slack["']/.test(registrySvcSrc);
+if (hardcodedPushOnly) {
+  fail('connector-registry.service.ts syncNow() still has hardcoded push-only connector type check (use plugin.syncable instead)');
+} else {
+  pass('connector-registry.service.ts syncNow() uses plugin.syncable (no hardcoded push-only list)');
 }
 
 // ---------------------------------------------------------------------------

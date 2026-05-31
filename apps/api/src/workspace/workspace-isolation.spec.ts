@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaService } from "../prisma/prisma.service";
 import { CustomersService } from "../customers/customers.service";
 import { ConnectorRegistryService } from "../connector-registry/connector-registry.service";
+import { PluginRegistryService } from "../plugin-registry/plugin-registry.service";
 
 // ── Customers isolation ────────────────────────────────────────────────────
 
@@ -137,9 +138,20 @@ describe("ConnectorRegistryService — workspace isolation", () => {
 
   beforeEach(() => {
     prisma = makeConnectorPrisma();
+    const mockPluginRegistry = {
+      getConnectorPlugin: vi.fn().mockReturnValue(null),
+      getAllConnectorPlugins: vi.fn().mockReturnValue([]),
+      getAllWebhookEvents: vi.fn().mockReturnValue([]),
+      getAllManifests: vi.fn().mockReturnValue([]),
+      validate: vi.fn(),
+      register: vi.fn(),
+    } as unknown as PluginRegistryService;
+    const mockModuleRef = { get: vi.fn().mockReturnValue(null) };
     service = new ConnectorRegistryService(
       prisma as unknown as PrismaService,
       makeConfig() as never,
+      mockPluginRegistry,
+      mockModuleRef as never,
     );
   });
 

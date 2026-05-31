@@ -5,12 +5,20 @@ import { JobsModule } from "../jobs/jobs.module";
 import { WebhookEndpointController } from "./webhook-endpoint.controller";
 import { WebhookEndpointService } from "./webhook-endpoint.service";
 import { WebhookDeliveryService } from "./webhook-delivery.service";
-import { WebhookEmitterService } from "./webhook-emitter.service";
+import { WebhookEmitterService, WEBHOOK_EMITTER_TOKEN } from "./webhook-emitter.service";
 
 @Module({
   imports: [PrismaModule, JobsModule],
   controllers: [WebhookEndpointController],
-  providers: [WebhookEndpointService, WebhookDeliveryService, WebhookEmitterService],
-  exports: [WebhookEmitterService],
+  providers: [
+    WebhookEndpointService,
+    WebhookDeliveryService,
+    WebhookEmitterService,
+    {
+      provide: WEBHOOK_EMITTER_TOKEN,
+      useExisting: WebhookEmitterService,
+    },
+  ],
+  exports: [WebhookEmitterService, WEBHOOK_EMITTER_TOKEN],
 })
 export class WebhooksModule {}

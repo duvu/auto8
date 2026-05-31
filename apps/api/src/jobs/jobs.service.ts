@@ -9,7 +9,7 @@ import { AuditService } from "../audit/audit.service";
 import { RfqExtractionService } from "../rfqs/rfq-extraction.service";
 import { LlmService } from "../llm/llm.service";
 
-export type JobType = "attachment_parse" | "item_match" | "sheet_export" | "rfq_extract" | "generate_embeddings" | "catalogue_enrichment" | "webhook_deliver";
+export type JobType = string;
 
 @Injectable()
 export class JobsService implements OnModuleInit {
@@ -173,7 +173,7 @@ export class JobsService implements OnModuleInit {
         data: { status: "running", attempts: job.attempts + 1 },
       });
 
-      const handler = this.handlers.get(job.type as JobType);
+      const handler = this.handlers.get(job.type);
       if (!handler) {
         this.logger.warn(`No handler registered for job type: ${job.type}`);
         await this.prisma.backgroundJob.update({

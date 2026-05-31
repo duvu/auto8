@@ -1,5 +1,5 @@
-import { Module, OnModuleInit } from "@nestjs/common";
-import { APP_GUARD, APP_INTERCEPTOR, ModuleRef } from "@nestjs/core";
+import { Module } from "@nestjs/common";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { ScheduleModule } from "@nestjs/schedule";
 import { LoggerModule } from "nestjs-pino";
@@ -14,18 +14,13 @@ import { BillingModule } from "./billing/billing.module";
 import { BillingGuard } from "./billing/billing.guard";
 import { ConfigModule } from "./config/config.module";
 import { ConnectorRegistryModule } from "./connector-registry/connector-registry.module";
-import { GmailModule } from "./gmail/gmail.module";
 import { HealthController } from "./health.controller";
 import { CatalogueModule } from "./catalogue/catalogue.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { QuoteEmailModule } from "./quote-email/quote-email.module";
-import { QuotesModule } from "./quotes/quotes.module";
 import { RbacGuard } from "./rbac/rbac.guard";
 import { RbacModule } from "./rbac/rbac.module";
-import { RfqsModule } from "./rfqs/rfqs.module";
-import { SlackModule } from "./slack/slack.module";
-import { OutlookModule } from "./outlook/outlook.module";
 import { SchedulerModule } from "./scheduler/scheduler.module";
 import { UsersModule } from "./users/users.module";
 import { SettingsModule } from "./settings/settings.module";
@@ -33,17 +28,19 @@ import { CustomersModule } from "./customers/customers.module";
 import { QuoteTemplatesModule } from "./quote-templates/quote-templates.module";
 import { SlaModule } from "./sla/sla.module";
 import { SetupModule } from "./setup/setup.module";
-import { WhatsappModule } from "./whatsapp/whatsapp.module";
-import { TelegramModule } from "./telegram/telegram.module";
-import { ZaloModule } from "./zalo/zalo.module";
-import { WebhooksModule } from "./webhooks/webhooks.module";
-import { WebhookEmitterService } from "./webhooks/webhook-emitter.service";
 import { WorkspaceModule } from "./workspace/workspace.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { PortalModule } from "./portal/portal.module";
-import { RfqIntakeService } from "./rfqs/rfq-intake.service";
-import { QuoteWorkflowService } from "./rfqs/quote-workflow.service";
-import { QuoteEmailService } from "./quote-email/quote-email.service";
+import { PluginRegistryModule } from "./plugin-registry";
+import { GmailPlugin } from "./gmail/gmail.plugin";
+import { SlackPlugin } from "./slack/slack.plugin";
+import { OutlookPlugin } from "./outlook/outlook.plugin";
+import { WhatsappPlugin } from "./whatsapp/whatsapp.plugin";
+import { TelegramPlugin } from "./telegram/telegram.plugin";
+import { ZaloPlugin } from "./zalo/zalo.plugin";
+import { WebhooksPlugin } from "./webhooks/webhooks.plugin";
+import { RfqsPlugin } from "./rfqs/rfqs.plugin";
+import { QuotesPlugin } from "./quotes/quotes.plugin";
 
 @Module({
   imports: [
@@ -74,6 +71,17 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
             : undefined,
       },
     }),
+    PluginRegistryModule.register([
+      GmailPlugin,
+      SlackPlugin,
+      OutlookPlugin,
+      WhatsappPlugin,
+      TelegramPlugin,
+      ZaloPlugin,
+      WebhooksPlugin,
+      RfqsPlugin,
+      QuotesPlugin,
+    ]),
     AuditModule,
     AuthModule,
     BillingModule,
@@ -81,12 +89,7 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
     SchedulerModule,
     ConnectorRegistryModule,
     JobsModule,
-    RfqsModule,
-    QuotesModule,
     QuoteEmailModule,
-    GmailModule,
-    SlackModule,
-    OutlookModule,
     RbacModule,
     UsersModule,
     SettingsModule,
@@ -94,10 +97,6 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
     QuoteTemplatesModule,
     SlaModule,
     SetupModule,
-    WhatsappModule,
-    TelegramModule,
-    ZaloModule,
-    WebhooksModule,
     WorkspaceModule,
     AnalyticsModule,
     PortalModule,
@@ -126,19 +125,4 @@ import { QuoteEmailService } from "./quote-email/quote-email.service";
     },
   ],
 })
-export class AppModule implements OnModuleInit {
-  constructor(private readonly moduleRef: ModuleRef) {}
-
-  onModuleInit() {
-    const emitter = this.moduleRef.get(WebhookEmitterService, { strict: false });
-
-    const rfqIntake = this.moduleRef.get(RfqIntakeService, { strict: false });
-    rfqIntake.webhookEmitter = emitter;
-
-    const quoteWorkflow = this.moduleRef.get(QuoteWorkflowService, { strict: false });
-    quoteWorkflow.webhookEmitter = emitter;
-
-    const quoteEmail = this.moduleRef.get(QuoteEmailService, { strict: false });
-    quoteEmail.webhookEmitter = emitter;
-  }
-}
+export class AppModule {}

@@ -7,6 +7,7 @@ import {
   Post,
   RawBodyRequest,
   Req,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { Request } from "express";
 
@@ -17,7 +18,17 @@ import { BillingService } from "./billing.service";
 
 @Controller("billing")
 export class BillingController {
-  constructor(private readonly billingService: BillingService) {}
+  private readonly billingEnabled: boolean;
+
+  constructor(private readonly billingService: BillingService) {
+    this.billingEnabled = process.env['BILLING_ENABLED'] === 'true';
+  }
+
+  private checkEnabled(): void {
+    if (!this.billingEnabled) {
+      throw new ServiceUnavailableException('Billing is not enabled for this deployment');
+    }
+  }
 
   @Get("subscription")
   async getSubscription(@CurrentWorkspaceId() workspaceId: string) {
@@ -30,6 +41,7 @@ export class BillingController {
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: { id: string },
   ) {
+    this.checkEnabled();
     return this.billingService.createStripeCheckout(workspaceId, user.id);
   }
 
@@ -37,6 +49,7 @@ export class BillingController {
   @Post("stripe/webhook")
   @HttpCode(HttpStatus.OK)
   async stripeWebhook(@Req() req: RawBodyRequest<Request>): Promise<{ received: boolean }> {
+    this.checkEnabled();
     const sig = req.headers["stripe-signature"] as string;
     const rawBody = req.rawBody ?? Buffer.from("");
     await this.billingService.handleStripeWebhook(rawBody, sig);
@@ -46,6 +59,7 @@ export class BillingController {
   @Post("sepay/init")
   @HttpCode(HttpStatus.OK)
   async initSePayOrder(@CurrentWorkspaceId() workspaceId: string) {
+    this.checkEnabled();
     return this.billingService.initSePayOrder(workspaceId);
   }
 
@@ -55,6 +69,7 @@ export class BillingController {
   async confirmSePayTransfer(
     @Body() body: { workspaceId: string; transferContent: string; amount: number },
   ) {
+    this.checkEnabled();
     return this.billingService.confirmSePayTransfer(
       body.workspaceId,
       body.transferContent,

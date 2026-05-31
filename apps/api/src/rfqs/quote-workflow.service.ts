@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,12 +18,11 @@ import { QuoteEmailService } from "../quote-email/quote-email.service";
 import { AuditService } from "../audit/audit.service";
 import { AiQuoteGenerationService } from "./ai-quote-generation.service";
 import { JobsService } from "../jobs/jobs.service";
+import { WEBHOOK_EMITTER_TOKEN } from "../webhooks/webhook-emitter.service";
 
 @Injectable()
 export class QuoteWorkflowService {
   private readonly logger = new Logger(QuoteWorkflowService.name);
-
-  webhookEmitter?: { emit(event: string, payload: Record<string, unknown>): Promise<void> };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -31,6 +31,8 @@ export class QuoteWorkflowService {
     private readonly auditService: AuditService,
     private readonly aiQuoteGenerationService: AiQuoteGenerationService,
     private readonly jobsService: JobsService,
+    @Inject(WEBHOOK_EMITTER_TOKEN)
+    private readonly webhookEmitter: { emit(event: string, payload: Record<string, unknown>): Promise<void> } | null,
   ) {}
 
   async saveDraft(rfqId: string, input: SaveQuoteInput, actorId: string): Promise<RfqDetailView> {

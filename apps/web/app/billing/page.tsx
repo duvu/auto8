@@ -6,8 +6,9 @@ import { useRequireAuth } from "../../lib/use-require-auth";
 import { API_BASE_URL } from "../../lib/config";
 
 interface SubscriptionView {
+  enabled?: boolean;
   id: string;
-  plan: string;
+  plan: string | null;
   status: string;
   trialEndsAt: string | null;
   stripeCustomerId: string | null;
@@ -101,7 +102,14 @@ export default function BillingPage() {
 
         {loading && <p className="text-sm text-muted">Loading...</p>}
 
-        {sub && (
+        {sub && sub.enabled === false && (
+          <div className="bg-gray-50 border border-gray-200 text-gray-700 rounded p-4 text-sm">
+            <p className="font-medium mb-1">Billing is not enabled for this deployment.</p>
+            <p className="text-gray-500">Set <code className="bg-gray-100 px-1 rounded">BILLING_ENABLED=true</code> to enable subscription management.</p>
+          </div>
+        )}
+
+        {sub && sub.enabled !== false && (
           <>
             <div className="border border-border rounded-lg p-4 mb-6">
               <div className="flex items-center justify-between mb-2">

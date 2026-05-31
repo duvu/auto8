@@ -3,12 +3,13 @@ import { AuditModule } from "../audit/audit.module";
 import { EmailModule } from "../email/email.module";
 import { LlmModule } from "../llm/llm.module";
 import { RbacModule } from "../rbac/rbac.module";
+import { WebhooksModule } from "../webhooks/webhooks.module";
 import { QuoteEmailService } from "./quote-email.service";
 import { QuoteEmailController } from "./quote-email.controller";
 import { SmartEmailGenerationService } from "./smart-email-generation.service";
 
 @Module({
-  imports: [AuditModule, EmailModule, LlmModule, RbacModule],
+  imports: [AuditModule, EmailModule, LlmModule, RbacModule, WebhooksModule],
   providers: [QuoteEmailService, SmartEmailGenerationService],
   controllers: [QuoteEmailController],
   exports: [QuoteEmailService],

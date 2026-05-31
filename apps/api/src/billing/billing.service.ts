@@ -6,9 +6,10 @@ import type { Stripe as StripeTypes } from "stripe/cjs/stripe.core.js";
 import { PrismaService } from "../prisma/prisma.service";
 
 export interface SubscriptionView {
-  plan: string;
+  enabled: boolean;
+  plan: string | null;
   status: string;
-  trialEndsAt: Date;
+  trialEndsAt: Date | null;
   stripeCustomerId: string | null;
   stripeSubId: string | null;
   sePayOrderCode: string | null;
@@ -19,12 +20,14 @@ type StripeInstance = ReturnType<typeof Stripe>;
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
+  private readonly billingEnabled: boolean;
   private stripe: StripeInstance | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {
+    this.billingEnabled = process.env['BILLING_ENABLED'] === 'true';
     const secretKey = this.config.get<string>("STRIPE_SECRET_KEY");
     if (secretKey) {
       this.stripe = new Stripe(secretKey);
@@ -34,9 +37,21 @@ export class BillingService {
   }
 
   async getSubscription(workspaceId: string): Promise<SubscriptionView> {
+    if (!this.billingEnabled) {
+      return {
+        enabled: false,
+        plan: null,
+        status: 'disabled',
+        trialEndsAt: null,
+        stripeCustomerId: null,
+        stripeSubId: null,
+        sePayOrderCode: null,
+      };
+    }
     const sub = await this.prisma.subscription.findUnique({ where: { workspaceId } });
     if (!sub) throw new NotFoundException("Subscription not found.");
     return {
+      enabled: true,
       plan: sub.plan,
       status: sub.status,
       trialEndsAt: sub.trialEndsAt,

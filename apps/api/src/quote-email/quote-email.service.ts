@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -12,12 +13,11 @@ import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { SmartEmailGenerationService } from "./smart-email-generation.service";
+import { WEBHOOK_EMITTER_TOKEN } from "../webhooks/webhook-emitter.service";
 
 @Injectable()
 export class QuoteEmailService {
   private readonly logger = new Logger(QuoteEmailService.name);
-
-  webhookEmitter?: { emit(event: string, payload: Record<string, unknown>): Promise<void> };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -25,6 +25,8 @@ export class QuoteEmailService {
     private readonly auditService: AuditService,
     private readonly smartEmailGeneration: SmartEmailGenerationService,
     private readonly emailService: EmailService,
+    @Inject(WEBHOOK_EMITTER_TOKEN)
+    private readonly webhookEmitter: { emit(event: string, payload: Record<string, unknown>): Promise<void> } | null,
   ) {}
 
   async generateDraft(quoteId: string, autoSend: boolean): Promise<void> {

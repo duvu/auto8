@@ -3,6 +3,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { JobsService } from "../jobs/jobs.service";
 import { WebhookEndpointService } from "./webhook-endpoint.service";
 
+export const WEBHOOK_EMITTER_TOKEN = "WEBHOOK_EMITTER_TOKEN";
+
 @Injectable()
 export class WebhookEmitterService {
   private readonly logger = new Logger(WebhookEmitterService.name);

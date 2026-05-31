@@ -53,7 +53,7 @@ External services:
 | `RbacModule` | `RbacGuard`, `@Roles`, `@Public`, `@CurrentUser`, `@CurrentWorkspaceId` decorators; sets Sentry user context |
 | `WorkspaceModule` | Workspace CRUD; multi-tenant root entity; super_admin-only writes |
 | `EmailModule` | Transactional email via Resend SDK; 5 methods (generic send, password reset, email verify, invite, portal revision); no-op when RESEND_API_KEY unset |
-| `BillingModule` | Subscription management; Stripe checkout + webhooks; SePay bank transfer verification; `BillingGuard` (global, skips @Public + super_admin) |
+| `BillingModule` | Subscription management; Stripe checkout + webhooks; SePay bank transfer verification; `BillingGuard` (global, skips @Public + super_admin; disabled when `BILLING_ENABLED != true`) |
 | `RfqsModule` | RFQ intake, classification, extraction, quote workflow, pipeline status, item matching; reply threading |
 | `QuotesModule` | Read-only quote endpoints (`GET /quotes/:id`) |
 | `QuoteEmailModule` | Quote email compose, edit, and send via Resend |
@@ -243,7 +243,7 @@ sent
 
 **Guard behaviour:**
 - `RbacGuard` is registered as a global `APP_GUARD` — applies to all routes
-- `BillingGuard` runs after RbacGuard — checks subscription status (active or trialing); skips `@Public()` routes and `super_admin` users
+- `BillingGuard` runs after RbacGuard — checks subscription status (active or trialing); skips `@Public()` routes and `super_admin` users; skipped entirely when `BILLING_ENABLED != true`
 - `ThrottlerGuard` enforces named rate limits: `default` (60/min), `auth` (5/5min), `public` (30/min)
 - Routes with `@Public()` skip authentication entirely
 - Routes with `@Roles(...)` require a valid token AND the user to have one of the listed roles

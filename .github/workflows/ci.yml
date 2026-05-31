@@ -17,6 +17,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: apps/api
       - run: npm run typecheck
 
   build:
@@ -30,6 +33,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: apps/api
       - run: npm run build
 
   test:
@@ -61,7 +67,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Setup test database
-        run: npx prisma db push --force-reset --skip-generate
+      - name: Generate Prisma client and setup test database
+        run: npx prisma generate && npx prisma db push --force-reset
         working-directory: apps/api
       - run: npm run test

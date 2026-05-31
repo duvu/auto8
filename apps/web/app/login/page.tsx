@@ -75,9 +75,12 @@ export default function LoginPage() {
             {loading ? t("submitting") : t("submit")}
           </button>
 
-          <div className="text-center">
+          <div className="text-center flex flex-col gap-2">
             <Link href="/forgot-password" className="text-sm text-muted hover:text-ink transition-colors">
               {t("forgotPassword")}
+            </Link>
+            <Link href="/signup" className="text-sm text-accent hover:underline">
+              Create an account
             </Link>
           </div>
         </form>

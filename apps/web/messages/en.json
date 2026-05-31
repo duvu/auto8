@@ -10,7 +10,9 @@
     "settings": "Settings",
     "webhooks": "Webhooks",
     "logout": "Log out",
-    "login": "Log in"
+    "login": "Log in",
+    "analytics": "Analytics",
+    "workspace": "Workspace"
   },
   "login": {
     "eyebrow": "auto8",

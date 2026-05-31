@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
@@ -15,4 +16,12 @@ const nextConfig: NextConfig = {
   }
 };
 
-export default withNextIntl(nextConfig);
+const sentryEnabled = !!process.env["NEXT_PUBLIC_SENTRY_DSN"];
+
+export default sentryEnabled
+  ? withSentryConfig(withNextIntl(nextConfig), {
+      org: process.env["SENTRY_ORG"] ?? "",
+      project: process.env["SENTRY_PROJECT"] ?? "",
+      silent: true,
+    })
+  : withNextIntl(nextConfig);

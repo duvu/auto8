@@ -1,9 +1,9 @@
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, RfqSourceType } from "@auto8/shared";
 
 export type NormalizedRfqIntake = {
-  sourceType: "email" | "slack" | "outlook" | "whatsapp" | "telegram" | "zalo";
+  sourceType: RfqSourceType;
   sourceLabel: string;
   senderEmail: string | null;
   senderName: string | null;

@@ -106,6 +106,27 @@ export function WorkspaceShell({
           >
             {t("settings")}
           </Link>
+          <Link
+            href="/analytics"
+            className="text-sm px-3 py-1.5 rounded-md text-muted hover:text-ink hover:bg-accent-soft transition-colors"
+            onClick={() => setMenuOpen(false)}
+          >
+            {t("analytics")}
+          </Link>
+          <Link
+            href="/settings/workspace"
+            className="text-sm px-3 py-1.5 rounded-md text-muted hover:text-ink hover:bg-accent-soft transition-colors"
+            onClick={() => setMenuOpen(false)}
+          >
+            {t("workspace")}
+          </Link>
+          <Link
+            href="/billing"
+            className="text-sm px-3 py-1.5 rounded-md text-muted hover:text-ink hover:bg-accent-soft transition-colors"
+            onClick={() => setMenuOpen(false)}
+          >
+            Billing
+          </Link>
         </>
       )}
       <span className="badge dark ml-2">{authUser.role}</span>

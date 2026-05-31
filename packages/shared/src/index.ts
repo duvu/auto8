@@ -1,7 +1,23 @@
-export const USER_ROLES = ["quote_operator", "sales_approver", "admin"] as const;
+/**
+ * Contract Ownership Policy
+ * --------------------------
+ * This file is the single source of truth for all cross-layer contracts in auto8.
+ *
+ * ADD types/constants here when:
+ *   - Both apps/api and apps/web need to reference the same value (enums, view shapes, DTOs)
+ *   - A value is used in more than one package
+ *
+ * KEEP types local when:
+ *   - A type is only used inside one module and never serialized to/from the API boundary
+ *   - An internal Prisma query shape or NestJS-only decorator param
+ *
+ * NEVER duplicate a type from this file inside apps/api or apps/web — import it instead.
+ */
+
+export const USER_ROLES = ["quote_operator", "sales_approver", "admin", "super_admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const QUOTE_STATUSES = ["draft", "pending_approval", "approved", "revised"] as const;
+export const QUOTE_STATUSES = ["draft", "pending_approval", "approved", "revised", "customer_accepted", "customer_rejected", "revision_requested"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 export const RFQ_WORKFLOW_STATES = ["new", "draft", "pending_approval", "approved"] as const;
@@ -397,6 +413,7 @@ export interface CustomerView {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  quoteCount?: number;
 }
 
 export interface QuoteTemplateLineItemView {
@@ -577,3 +594,141 @@ export interface SetupStatusView {
 }
 
 export * from "./quote-calc";
+
+export interface ConnectorFieldDef {
+  key: string;
+  label: string;
+  placeholder: string;
+  description: string;
+  secret: boolean;
+  required: boolean;
+  hint?: string;
+}
+
+export const CONNECTOR_FIELD_DEFS: Record<ConnectorType, ConnectorFieldDef[]> = {
+  gmail: [
+    { key: "clientId", label: "Client ID", placeholder: "1234567890-abc.apps.googleusercontent.com", description: "OAuth2 client ID from Google Cloud Console", secret: false, required: true },
+    { key: "clientSecret", label: "Client Secret", placeholder: "GOCSPX-…", description: "OAuth2 client secret from Google Cloud Console", secret: true, required: true },
+    { key: "refreshToken", label: "Refresh Token", placeholder: "1//0g…", description: "Long-lived refresh token from OAuth2 consent flow", secret: true, required: true },
+    { key: "query", label: "Search Query", placeholder: "is:unread subject:RFQ", description: "Gmail search filter for incoming RFQ emails (optional)", secret: false, required: false },
+    { key: "maxResults", label: "Max Results", placeholder: "50", description: "Maximum emails to fetch per sync cycle (optional)", secret: false, required: false },
+  ],
+  slack: [
+    { key: "botToken", label: "Bot Token", placeholder: "xoxb-…", description: "Slack bot token from your app's OAuth & Permissions page", secret: true, required: true, hint: "Must start with xoxb-" },
+    { key: "signingSecret", label: "Signing Secret", placeholder: "abc123…", description: "Slack signing secret for verifying webhook payloads", secret: true, required: true },
+    { key: "workspaceId", label: "Workspace ID", placeholder: "T0123456789", description: "Slack workspace (team) ID starting with T", secret: false, required: true },
+  ],
+  outlook: [
+    { key: "clientId", label: "Client ID", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", description: "Azure app registration client ID", secret: false, required: true },
+    { key: "clientSecret", label: "Client Secret", placeholder: "abc~xyz…", description: "Azure app registration client secret", secret: true, required: true },
+    { key: "refreshToken", label: "Refresh Token", placeholder: "0.AXXX…", description: "Microsoft OAuth2 refresh token", secret: true, required: true },
+    { key: "tenantId", label: "Tenant ID", placeholder: "common", description: "Azure tenant ID — use 'common' for personal accounts", secret: false, required: false },
+    { key: "maxResults", label: "Max Results", placeholder: "50", description: "Maximum emails to fetch per sync cycle (optional)", secret: false, required: false },
+    { key: "markAsRead", label: "Mark as Read", placeholder: "true", description: "Mark emails as read after importing (optional)", secret: false, required: false },
+  ],
+  whatsapp: [
+    { key: "appSecret", label: "App Secret", placeholder: "abc123…", description: "Meta app secret for HMAC-SHA256 signature verification", secret: true, required: true },
+    { key: "phoneNumberId", label: "Phone Number ID", placeholder: "1234567890", description: "WhatsApp Business phone number ID from Meta Developer Console", secret: false, required: true },
+    { key: "accessToken", label: "Access Token", placeholder: "EAAxxxxxx…", description: "Meta permanent access token for sending (optional for receive-only)", secret: true, required: false },
+    { key: "verifyToken", label: "Verify Token", placeholder: "my-verify-token", description: "Token used to verify the webhook URL during Meta setup", secret: false, required: true },
+  ],
+  telegram: [
+    { key: "botToken", label: "Bot Token", placeholder: "1234567890:AAFxxxxxx", description: "Telegram bot token from @BotFather", secret: true, required: true },
+    { key: "secret", label: "Webhook Secret", placeholder: "my-webhook-secret", description: "Secret token appended to the webhook URL for authentication", secret: false, required: true },
+  ],
+  zalo: [
+    { key: "appId", label: "App ID", placeholder: "1234567890123456789", description: "Zalo OA app ID from Zalo Developer Console", secret: false, required: true },
+    { key: "appSecret", label: "App Secret", placeholder: "abc123…", description: "Zalo OA app secret for HMAC-SHA256 verification", secret: true, required: true },
+    { key: "verifyToken", label: "Verify Token", placeholder: "my-verify-token", description: "Token used to verify the webhook callback URL", secret: false, required: true },
+    { key: "oaAccessToken", label: "OA Access Token", placeholder: "v3_xxx…", description: "OA access token — required only for testConnector; optional for receive-only", secret: true, required: false },
+  ],
+};
+
+export interface TestConnectorCredentialsInput {
+  type: ConnectorType;
+  credentials: Record<string, string>;
+}
+
+export interface RfqVolumePoint {
+  date: string;
+  count: number;
+  sourceType: string;
+}
+
+export interface WinRateResult {
+  accepted: number;
+  rejected: number;
+  winRate: number;
+}
+
+export interface ResponseTimeResult {
+  avgHours: number;
+  p50Hours: number;
+  p90Hours: number;
+}
+
+export interface TopCustomerView {
+  customerId: string;
+  companyName: string;
+  totalQuotes: number;
+  grandTotal: number;
+  winRate: number;
+}
+
+export interface ConnectorStatsView {
+  connectorId: string;
+  label: string;
+  type: string;
+  intakeCount: number;
+  lastSyncAt: string | null;
+  recentFailures: number;
+}
+
+export interface WorkspaceView {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: string;
+}
+
+export interface WebhookEndpointView {
+  id: string;
+  url: string;
+  events: string[];
+  isEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortalQuoteView {
+  reference: string;
+  customerName: string;
+  customerCompany: string;
+  lineItems: {
+    description: string;
+    qty: number;
+    unitPrice: number;
+    total: number;
+    currency: string;
+  }[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  grandTotal: number;
+  currency: string;
+  validUntil: string | null;
+  notes: string | null;
+}
+
+export interface ShareLinkResult {
+  url: string;
+  token: string;
+}
+
+export interface RfqReplyView {
+  id: string;
+  subject: string | null;
+  senderName: string | null;
+  body: string | null;
+  receivedAt: string;
+}

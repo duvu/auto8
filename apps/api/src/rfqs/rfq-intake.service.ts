@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -27,6 +28,7 @@ import { RfqClassificationService } from "./rfq-classification.service";
 import { JobsService } from "../jobs/jobs.service";
 import { optionalString } from "../common/utils/string.util";
 import { SlaService } from "../sla/sla.service";
+import { WEBHOOK_EMITTER_TOKEN } from "../webhooks/webhook-emitter.service";
 
 const rfqDetailInclude = {
   intake: true,
@@ -65,9 +67,9 @@ export class RfqIntakeService {
     private readonly rfqClassificationService: RfqClassificationService,
     private readonly jobsService: JobsService,
     private readonly slaService: SlaService,
+    @Inject(WEBHOOK_EMITTER_TOKEN)
+    private readonly webhookEmitter: { emit(event: string, payload: Record<string, unknown>): Promise<void> } | null,
   ) {}
-
-  webhookEmitter?: { emit(event: string, payload: Record<string, unknown>): Promise<void> };
 
   async intakeEmail(input: IntakeEmailInput): Promise<RfqDetailView> {
     this.validateEmailIntake(input);

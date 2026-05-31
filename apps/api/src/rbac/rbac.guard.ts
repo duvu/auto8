@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
+import * as Sentry from "@sentry/nestjs";
 import { Request } from "express";
 
 import type { UserRole } from "@prisma/client";
@@ -49,10 +50,10 @@ export class RbacGuard implements CanActivate {
       throw new UnauthorizedException("Authentication required.");
     }
 
-    let payload: { sub: string; role: UserRole };
+    let payload: { sub: string; role: UserRole; workspaceId?: string };
 
     try {
-      payload = this.jwtService.verify<{ sub: string; role: UserRole }>(token);
+      payload = this.jwtService.verify<{ sub: string; role: UserRole; workspaceId?: string }>(token);
     } catch {
       throw new UnauthorizedException("Invalid or expired token.");
     }
@@ -68,9 +69,13 @@ export class RbacGuard implements CanActivate {
     }
 
     (request as Request & { user?: unknown }).user = user;
+    if (payload.workspaceId) {
+      (request as Request & { workspaceId?: string }).workspaceId = payload.workspaceId;
+    }
 
-    // admin is super-role — bypass role checks
-    if (user.role === "admin") {
+    Sentry.setUser({ id: user.id, email: user.email });
+
+    if (user.role === "admin" || user.role === "super_admin") {
       return true;
     }
 

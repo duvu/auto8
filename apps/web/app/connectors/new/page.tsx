@@ -3,10 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import type { CreateConnectorInput, ConnectorType } from "@auto8/shared";
+import type { ConnectorType, CreateConnectorInput } from "@auto8/shared";
 import { CONNECTOR_TYPES } from "@auto8/shared";
 
-import { createConnector, getOAuth2Providers, startOAuth2Flow } from "../../../lib/api";
+import { createConnector, getOAuth2Providers, startOAuth2Flow, testConnectorCredentials } from "../../../lib/api";
+import { ConnectorCredentialForm, emptyCredentials, validateConnectorCredentials } from "../../../components/connector-credential-form";
+import { ConnectorSetupGuide } from "../../../components/connector-setup-guide";
 import { WorkspaceShell } from "../../../components/workspace-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
@@ -20,10 +22,12 @@ export default function NewConnectorPage() {
   const router = useRouter();
   const [type, setType] = useState<ConnectorType>("gmail");
   const [label, setLabel] = useState("");
-  const [credentials, setCredentials] = useState("{}");
+  const [credentials, setCredentials] = useState<Record<string, string>>(emptyCredentials("gmail"));
   const [loading, setLoading] = useState(false);
   const [oauth2Loading, setOauth2Loading] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [oauth2Providers, setOauth2Providers] = useState<Record<ConnectorType, boolean>>({
     gmail: false,
     slack: false,
@@ -36,32 +40,37 @@ export default function NewConnectorPage() {
   const authResult = useRequireAuth("admin");
 
   useEffect(() => {
-    getOAuth2Providers().then((p) => {
-      setOauth2Providers({
-        ...p,
-        whatsapp: false,
-        telegram: false,
-        zalo: false,
-      } as Record<ConnectorType, boolean>);
-    }).catch(() => {/* ignore */});
+    getOAuth2Providers()
+      .then((p) => {
+        setOauth2Providers({
+          ...p,
+          whatsapp: false,
+          telegram: false,
+          zalo: false,
+        } as Record<ConnectorType, boolean>);
+      })
+      .catch(() => {
+        /* ignore */
+      });
   }, []);
+
+  function handleTypeChange(newType: ConnectorType) {
+    setType(newType);
+    setCredentials(emptyCredentials(newType));
+    setTestResult(null);
+    setError(null);
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    let parsedCredentials: Record<string, string>;
-    try {
-      parsedCredentials = JSON.parse(credentials) as Record<string, string>;
-    } catch {
-      setError("Credentials must be valid JSON.");
-      setLoading(false);
+    if (!validateConnectorCredentials(type, credentials)) {
+      setError("Please fill in all required fields.");
       return;
     }
-
+    setLoading(true);
+    setError(null);
     try {
-      const input: CreateConnectorInput = { type, label, credentials: parsedCredentials };
+      const input: CreateConnectorInput = { type, label, credentials };
       await createConnector(input);
       router.push("/connectors");
     } catch (err) {
@@ -75,7 +84,8 @@ export default function NewConnectorPage() {
     setOauth2Loading(true);
     setError(null);
     try {
-      if (type === "whatsapp" || type === "telegram" || type === "zalo") throw new Error("OAuth2 not supported for this type");
+      if (type === "whatsapp" || type === "telegram" || type === "zalo")
+        throw new Error("OAuth2 not supported for this type");
       await startOAuth2Flow(type);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start OAuth2 flow.");
@@ -83,67 +93,24 @@ export default function NewConnectorPage() {
     }
   }
 
-  const credentialHints: Record<string, string> = {
-    gmail: JSON.stringify(
-      {
-        clientId: "YOUR_CLIENT_ID",
-        clientSecret: "YOUR_CLIENT_SECRET",
-        refreshToken: "YOUR_REFRESH_TOKEN",
-        query: "is:unread subject:RFQ",
-      },
-      null,
-      2,
-    ),
-    slack: JSON.stringify(
-      {
-        botToken: "xoxb-YOUR-BOT-TOKEN",
-        signingSecret: "YOUR_SIGNING_SECRET",
-        workspaceId: "T0123456789",
-      },
-      null,
-      2,
-    ),
-    outlook: JSON.stringify(
-      {
-        clientId: "YOUR_AZURE_APP_CLIENT_ID",
-        clientSecret: "YOUR_AZURE_APP_CLIENT_SECRET",
-        refreshToken: "YOUR_REFRESH_TOKEN",
-        tenantId: "common",
-        maxResults: 50,
-        markAsRead: true,
-      },
-      null,
-      2,
-    ),
-    whatsapp: JSON.stringify(
-      {
-        appSecret: "YOUR_APP_SECRET",
-        phoneNumberId: "YOUR_PHONE_NUMBER_ID",
-        accessToken: "YOUR_ACCESS_TOKEN",
-        verifyToken: "YOUR_VERIFY_TOKEN"
-      },
-      null,
-      2
-    ),
-    telegram: JSON.stringify(
-      {
-        botToken: "YOUR_BOT_TOKEN",
-        secret: "YOUR_WEBHOOK_SECRET"
-      },
-      null,
-      2
-    ),
-    zalo: JSON.stringify(
-      {
-        appId: "YOUR_ZALO_APP_ID",
-        appSecret: "YOUR_ZALO_APP_SECRET",
-        verifyToken: "YOUR_VERIFY_TOKEN",
-        oaAccessToken: "(optional — required for testConnector)"
-      },
-      null,
-      2
-    ),
-  };
+  async function handleTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await testConnectorCredentials(type, credentials);
+      setTestResult({
+        ok: result.ok,
+        message: result.ok ? (result.detail ?? "Connection successful") : (result.error ?? "Test failed"),
+      });
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "Test failed",
+      });
+    } finally {
+      setTesting(false);
+    }
+  }
 
   if (!authResult) return null;
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
@@ -153,7 +120,7 @@ export default function NewConnectorPage() {
   return (
     <WorkspaceShell
       title="Add Connector"
-      description="Configure a new Gmail, Slack, Outlook, WhatsApp, Telegram, or Zalo connector for RFQ ingestion."
+      description="Connect a new channel — Gmail, Slack, Outlook, WhatsApp, Telegram, or Zalo — to ingest RFQs automatically."
       authUser={authResult.user}
       section="Connectors"
     >
@@ -162,28 +129,33 @@ export default function NewConnectorPage() {
           <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
         )}
 
+        {/* Type selector */}
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Type</label>
+          <label className="block text-sm font-medium mb-1">Connector type</label>
           <select
             value={type}
-            onChange={(e) => {
-              const t = e.target.value as ConnectorType;
-              setType(t);
-              setCredentials(credentialHints[t] ?? "{}");
-            }}
+            onChange={(e) => handleTypeChange(e.target.value as ConnectorType)}
             className="border rounded px-3 py-2 text-sm w-full"
           >
             {CONNECTOR_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
+        </div>
+
+        {/* Setup guide (collapsed by default) */}
+        <div className="mb-4">
+          <ConnectorSetupGuide type={type} />
         </div>
 
         {useOAuth2 ? (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Click the button below to authorize via {type === "gmail" ? "Google" : type === "outlook" ? "Microsoft" : "Slack"}.
-              A connector will be created automatically after authorization.
+              Click the button below to authorize via{" "}
+              {type === "gmail" ? "Google" : type === "outlook" ? "Microsoft" : "Slack"}. A connector will be
+              created automatically after authorization.
             </p>
             <div className="flex gap-3">
               <button
@@ -205,6 +177,7 @@ export default function NewConnectorPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Label */}
             <div>
               <label className="block text-sm font-medium mb-1">Label</label>
               <input
@@ -218,20 +191,45 @@ export default function NewConnectorPage() {
               />
             </div>
 
+            {/* Structured credential fields */}
             <div>
-              <label className="block text-sm font-medium mb-1">Credentials (JSON)</label>
-              <textarea
-                value={credentials}
-                onChange={(e) => setCredentials(e.target.value)}
-                rows={10}
-                className="border rounded px-3 py-2 text-sm w-full font-mono text-xs"
-                required
+              <label className="block text-sm font-medium mb-2">Credentials</label>
+              <ConnectorCredentialForm
+                type={type}
+                credentials={credentials}
+                onChange={setCredentials}
               />
             </div>
 
-            <div className="flex gap-3">
-              <button className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50" type="submit" disabled={loading}>
+            {/* Test connection result */}
+            {testResult && (
+              <div
+                className={`rounded p-3 text-sm ${
+                  testResult.ok
+                    ? "bg-green-50 border border-green-200 text-green-700"
+                    : "bg-red-50 border border-red-200 text-red-700"
+                }`}
+              >
+                {testResult.ok ? "✓ " : "✗ "}
+                {testResult.message}
+              </div>
+            )}
+
+            <div className="flex gap-3 flex-wrap">
+              <button
+                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                type="submit"
+                disabled={loading}
+              >
                 {loading ? "Creating..." : "Create connector"}
+              </button>
+              <button
+                className="border rounded px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                type="button"
+                disabled={testing}
+                onClick={() => void handleTestConnection()}
+              >
+                {testing ? "Testing..." : "Test connection"}
               </button>
               <button
                 className="border rounded px-4 py-2 text-sm hover:bg-gray-50"

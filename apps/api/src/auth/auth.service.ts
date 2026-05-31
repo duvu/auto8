@@ -1,11 +1,17 @@
 import * as crypto from "crypto";
-import * as nodemailer from "nodemailer";
 
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 
+import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 export interface TokenPair {
@@ -23,6 +29,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   async login(email: string, password: string): Promise<TokenPair> {
@@ -37,7 +44,7 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials.");
     }
 
-    return this.issueTokenPair(user.id, user.role as string);
+    return this.issueTokenPair(user.id, user.role as string, user.workspaceId);
   }
 
   async refresh(refreshTokenPlaintext: string): Promise<TokenPair> {
@@ -59,7 +66,7 @@ export class AuthService {
       throw new UnauthorizedException("User not found or deactivated.");
     }
 
-    return this.issueTokenPair(user.id, user.role as string);
+    return this.issueTokenPair(user.id, user.role as string, user.workspaceId);
   }
 
   async logout(refreshTokenPlaintext: string): Promise<void> {
@@ -72,8 +79,8 @@ export class AuthService {
     });
   }
 
-  private async issueTokenPair(userId: string, role: string): Promise<TokenPair> {
-    const accessToken = this.jwtService.sign({ sub: userId, role });
+  private async issueTokenPair(userId: string, role: string, workspaceId: string): Promise<TokenPair> {
+    const accessToken = this.jwtService.sign({ sub: userId, role, workspaceId });
 
     const refreshPlaintext = crypto.randomBytes(32).toString("hex");
     const refreshHash = sha256(refreshPlaintext);
@@ -118,24 +125,7 @@ export class AuthService {
     const frontendUrl = this.config.get<string>("FRONTEND_URL", "http://localhost:3000");
     const resetLink = `${frontendUrl}/reset-password?token=${plaintextToken}`;
 
-    const smtpHost = this.config.get<string>("SMTP_HOST");
-    if (!smtpHost) return; // no email transport configured, skip silently
-
-    const transport = nodemailer.createTransport({
-      host: smtpHost,
-      port: this.config.get<number>("SMTP_PORT") ?? 587,
-      auth: {
-        user: this.config.get<string>("SMTP_USER"),
-        pass: this.config.get<string>("SMTP_PASS"),
-      },
-    });
-
-    await transport.sendMail({
-      from: this.config.get<string>("SMTP_FROM", "noreply@auto8.dev"),
-      to: email,
-      subject: "Reset your password",
-      text: `Click the link to reset your password: ${resetLink}\n\nThis link expires in 1 hour.`,
-    });
+    await this.emailService.sendPasswordReset(email, resetLink);
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
@@ -163,5 +153,122 @@ export class AuthService {
         data: { revokedAt: new Date() },
       }),
     ]);
+  }
+
+  async register(workspaceName: string, email: string, password: string): Promise<void> {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) throw new ConflictException("Email already in use.");
+
+    const slug = workspaceName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const existingWs = await this.prisma.workspace.findUnique({ where: { slug } });
+    if (existingWs) throw new ConflictException("Workspace slug already taken.");
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+    const workspace = await this.prisma.workspace.create({
+      data: { name: workspaceName, slug },
+    });
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        name: email.split("@")[0],
+        passwordHash,
+        role: "admin",
+        workspaceId: workspace.id,
+        isEmailVerified: false,
+      },
+    });
+
+    await this.prisma.subscription.create({
+      data: {
+        workspaceId: workspace.id,
+        plan: "trial",
+        status: "trialing",
+        trialEndsAt,
+      },
+    });
+
+    const plainToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await this.prisma.emailVerifyToken.create({
+      data: { token: plainToken, userId: user.id, expiresAt },
+    });
+
+    const frontendUrl = this.config.get<string>("FRONTEND_URL", "http://localhost:3000");
+    const verifyLink = `${frontendUrl}/verify-email?token=${plainToken}`;
+    await this.emailService.sendEmailVerification(email, verifyLink);
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const record = await this.prisma.emailVerifyToken.findUnique({ where: { token } });
+    if (!record || record.expiresAt < new Date()) {
+      throw new BadRequestException("Invalid or expired verification token.");
+    }
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: record.userId },
+        data: { isEmailVerified: true },
+      }),
+      this.prisma.emailVerifyToken.delete({ where: { id: record.id } }),
+    ]);
+  }
+
+  async sendInvite(email: string, workspaceId: string): Promise<void> {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) throw new ConflictException("User already exists.");
+
+    const workspace = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+    if (!workspace) throw new NotFoundException("Workspace not found.");
+
+    const plainToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await this.prisma.inviteToken.create({
+      data: { token: plainToken, email, workspaceId, expiresAt },
+    });
+
+    const frontendUrl = this.config.get<string>("FRONTEND_URL", "http://localhost:3000");
+    const inviteLink = `${frontendUrl}/invite?token=${plainToken}`;
+    await this.emailService.sendInvite(email, inviteLink, workspace.name);
+  }
+
+  async acceptInvite(
+    token: string,
+    password: string,
+    name?: string,
+  ): Promise<TokenPair> {
+    const record = await this.prisma.inviteToken.findUnique({ where: { token } });
+    if (!record || record.usedAt || record.expiresAt < new Date()) {
+      throw new BadRequestException("Invalid or expired invite token.");
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { email: record.email } });
+    if (existing) throw new ConflictException("User already exists.");
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const user = await this.prisma.user.create({
+      data: {
+        email: record.email,
+        name: name ?? record.email.split("@")[0],
+        passwordHash,
+        role: "quote_operator",
+        workspaceId: record.workspaceId,
+        isEmailVerified: true,
+      },
+    });
+
+    await this.prisma.inviteToken.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    });
+
+    return this.issueTokenPair(user.id, user.role, user.workspaceId);
+  }
+
+  async getSubscription(workspaceId: string) {
+    const sub = await this.prisma.subscription.findUnique({ where: { workspaceId } });
+    if (!sub) throw new NotFoundException("Subscription not found.");
+    return sub;
   }
 }

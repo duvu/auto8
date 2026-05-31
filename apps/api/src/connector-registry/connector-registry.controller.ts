@@ -1,12 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Patch, Post, Query, UnprocessableEntityException } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 
 import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorView, PaginatedResponse, IngestionRunView } from "@auto8/shared";
 import type { UserRole } from "@prisma/client";
 import { Roles } from "../rbac/roles.decorator";
+import { CurrentWorkspaceId } from "../rbac/current-workspace-id.decorator";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
 import { ConnectorRunsService } from "../scheduler/connector-runs.service";
 import type { CreateConnectorDto } from "./dto/create-connector.dto";
 import type { UpdateConnectorDto } from "./dto/update-connector.dto";
+import { TestCredentialsDto } from "./dto/test-credentials.dto";
 import { ConnectorRegistryService } from "./connector-registry.service";
 
 @Controller("connectors")
@@ -18,8 +20,13 @@ export class ConnectorRegistryController {
   ) {}
 
   @Get()
-  findAll(): Promise<ConnectorView[]> {
-    return this.registryService.findAll();
+  findAll(@CurrentWorkspaceId() workspaceId?: string): Promise<ConnectorView[]> {
+    return this.registryService.findAll(workspaceId);
+  }
+
+  @Post("test-credentials")
+  testCredentials(@Body() dto: TestCredentialsDto): Promise<ConnectorTestResult> {
+    return this.registryService.testCredentials(dto.type, dto.credentials);
   }
 
   @Get(":id")
@@ -43,8 +50,8 @@ export class ConnectorRegistryController {
   }
 
   @Post()
-  create(@Body() dto: CreateConnectorDto): Promise<ConnectorView> {
-    return this.registryService.create(dto);
+  create(@Body() dto: CreateConnectorDto, @CurrentWorkspaceId() workspaceId?: string): Promise<ConnectorView> {
+    return this.registryService.create(dto, workspaceId ?? "default");
   }
 
   @Patch(":id")

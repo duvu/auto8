@@ -13,12 +13,19 @@
     "db:generate": "npm run prisma:generate --workspace @auto8/api",
     "db:migrate": "npm run prisma:migrate --workspace @auto8/api",
     "db:push": "npx --workspace @auto8/api prisma db push",
-    "db:seed": "npm run prisma:seed --workspace @auto8/api"
+    "db:seed": "npm run prisma:seed --workspace @auto8/api",
+    "verify:contracts": "npm run build --workspace @auto8/shared && npx tsx tools/contract-checks/index.ts"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
     "concurrently": "^9.2.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/sdk-node": "^0.218.0",
+    "@sentry/nestjs": "^10.55.0",
+    "@sentry/node": "^10.55.0"
   }
 }

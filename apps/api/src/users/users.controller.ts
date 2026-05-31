@@ -12,6 +12,7 @@ import {
 import type { UserRole } from "@auto8/shared";
 
 import { Roles } from "../rbac/roles.decorator";
+import { CurrentWorkspaceId } from "../rbac/current-workspace-id.decorator";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -22,14 +23,17 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  async listUsers(@Query() pagination?: PaginationQueryDto) {
-    return this.usersService.findAll(pagination);
+  async listUsers(
+    @Query() pagination?: PaginationQueryDto,
+    @CurrentWorkspaceId() workspaceId?: string,
+  ) {
+    return this.usersService.findAll(pagination, workspaceId);
   }
 
   @Roles("admin" as UserRole)
   @Post()
-  async createUser(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  async createUser(@Body() dto: CreateUserDto, @CurrentWorkspaceId() workspaceId?: string) {
+    return this.usersService.create(dto, workspaceId ?? "default");
   }
 
   @Roles("admin" as UserRole)

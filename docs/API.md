@@ -10,6 +10,7 @@ All authenticated endpoints require valid auth cookies (set on login). The front
 - `operator` — `quote_operator` or `admin`
 - `approver` — `sales_approver` or `admin`
 - `admin` — `admin` role only
+- `super_admin` — super_admin role (bypasses all workspace restrictions)
 
 ---
 
@@ -102,6 +103,62 @@ Set a new password using a reset token from the email link.
 
 ---
 
+### `POST /api/auth/register`
+**Access:** public
+
+Register a new workspace. Creates Workspace + User(admin) + Subscription(trial, 14 days) + sends email verification link via Resend.
+
+**Request body:**
+```json
+{ "workspaceName": "Acme Corp", "email": "admin@acme.com", "password": "securepass123" }
+```
+
+**Response `201`:** `{ "message": "Workspace created. Check your email to verify." }`
+
+**Response `409`:** email already exists.
+
+---
+
+### `POST /api/auth/verify-email`
+**Access:** public
+
+Verify email address using the token from the verification email.
+
+**Request body:** `{ "token": "<verify-token>" }`
+
+**Response `204`**
+
+**Response `400`:** token missing, expired, or already used.
+
+---
+
+### `POST /api/auth/invite`
+**Access:** admin
+
+Send a team invite email. Creates InviteToken (7-day TTL) and sends invite link via Resend.
+
+**Request body:** `{ "email": "colleague@acme.com" }`
+
+**Response `201`:** `{ "message": "Invite sent" }`
+
+---
+
+### `POST /api/auth/invite/accept`
+**Access:** public
+
+Accept a team invite. Creates a User with `quote_operator` role in the workspace and sets auth cookies.
+
+**Request body:**
+```json
+{ "token": "<invite-token>", "password": "securepass", "name": "Jane Doe" }
+```
+
+**Response `200`:** `{ "ok": true }` — sets auth cookies (auto-login).
+
+**Response `400`:** token missing, expired, or already used.
+
+---
+
 ## Users
 
 ### `GET /api/users`
@@ -173,8 +230,18 @@ List RFQs with optional filters (paginated).
 - `page`, `limit`
 - `isRfq` — `true` (active RFQs, default) or `false` (rejected/classified-out)
 - `pipelineStatus` — filter by pipeline stage (e.g., `ready_for_quote`)
+- `includeReplies` — `true` to include reply intakes (default: `false`)
 
 **Response `200`:** `PaginatedResponse<RfqListItemView>`
+
+---
+
+### `GET /api/rfqs/:rfqId/replies`
+**Access:** any (authenticated)
+
+Return all email reply intakes for this RFQ thread.
+
+**Response `200`:** `RfqReplyView[]`
 
 ---
 
@@ -373,6 +440,8 @@ Register a new connector.
 }
 ```
 
+Supported connector types: `gmail`, `slack`, `outlook`, `whatsapp`, `telegram`, `zalo`
+
 **Response `201`:** `ConnectorView`
 
 ---
@@ -382,7 +451,7 @@ Register a new connector.
 
 Update a connector's label, credentials, or enabled state.
 
-Supported connector types: `gmail`, `slack`, `outlook`
+Supported connector types: `gmail`, `slack`, `outlook`, `whatsapp`, `telegram`, `zalo`
 
 ---
 
@@ -398,9 +467,49 @@ Remove a connector.
 ### `POST /api/connectors/:id/test`
 **Access:** admin
 
-Test the connector by making a live API call (Gmail profile check, Slack `auth.test`, or Outlook `GET /me`).
+Test the connector by making a live API call (Gmail profile check, Slack `auth.test`, Outlook `GET /me`, WhatsApp Graph API ping, Telegram `getMe`, Zalo OA info).
 
 **Response `200`:** `ConnectorTestResult`
+
+---
+
+### `POST /api/connectors/test-credentials`
+**Access:** admin
+
+Test a set of credentials before saving. Does not write to the database.
+
+**Request body:** `{ "type": "whatsapp", "credentials": { "appSecret": "...", "phoneNumberId": "..." } }`
+
+**Response `200`:** `ConnectorTestResult`
+
+---
+
+### `GET /api/connectors/oauth2/providers`
+**Access:** admin
+
+List available OAuth2 providers (gmail, slack, outlook) and their authorization URLs.
+
+**Response `200`:** `{ providers: [{ type, authUrl }] }`
+
+---
+
+### `GET /api/connectors/oauth2/start`
+**Access:** admin
+
+Redirect to the OAuth2 authorization URL for a provider.
+
+**Query params:** `provider` (gmail | slack | outlook), `connectorId` (optional, for re-auth)
+
+**Response `302`:** redirect to provider authorization page.
+
+---
+
+### `GET /api/connectors/oauth2/callback`
+**Access:** public (OAuth2 callback)
+
+Handle the OAuth2 callback, exchange code for tokens, and save to the connector record.
+
+**Response `302`:** redirect to `/connectors/:id/edit?connected=true`
 
 ---
 
@@ -422,6 +531,41 @@ Slack Events API endpoint for event callbacks.
 **Access:** public (protected by `GMAIL_CONNECTOR_SECRET` header)
 
 Trigger a sync for the legacy env-var Gmail connector.
+
+---
+
+### `GET /api/webhooks/whatsapp`
+**Access:** public (Meta webhook challenge verification)
+
+WhatsApp Business API webhook challenge endpoint.
+
+---
+
+### `POST /api/webhooks/whatsapp`
+**Access:** public (HMAC-SHA256 via `X-Hub-Signature-256`)
+
+Receive WhatsApp Business API message webhooks. Validates HMAC, downloads media (up to 16 MB), and creates `RfqIntake` records.
+
+---
+
+### `POST /api/webhooks/telegram/:secret`
+**Access:** public (secret-in-URL auth)
+
+Receive Telegram Bot API update webhooks. Downloads documents (up to 20 MB) and creates `RfqIntake` records.
+
+---
+
+### `GET /api/webhooks/zalo/:connectorId`
+**Access:** public (Zalo challenge verification)
+
+Zalo OA API webhook challenge endpoint. Returns the challenge string when `verifyToken` matches.
+
+---
+
+### `POST /api/webhooks/zalo/:connectorId`
+**Access:** public (HMAC-SHA256 via `mac` field)
+
+Receive Zalo OA API message webhooks. Downloads attachments (up to 20 MB) and creates `RfqIntake` records.
 
 ---
 
@@ -584,7 +728,7 @@ Test the current LLM configuration with a live completion call.
 
 List background jobs (paginated), optionally filtered by `status` or `type`.
 
-**Query params:** `page`, `limit`, `status` (`pending|running|done|failed`), `type` (`attachment_parse|rfq_extract|item_match|sheet_export`)
+**Query params:** `page`, `limit`, `status` (`pending|running|done|failed`), `type` (`attachment_parse|rfq_extract|item_match|sheet_export|webhook_deliver`)
 
 **Response `200`:** `PaginatedResponse<BackgroundJobView>`
 
@@ -645,3 +789,275 @@ The response also includes a `connectors` array with each connector's current he
 **Access:** any (authenticated)
 
 List runs for a specific connector (paginated).
+
+---
+
+## Webhooks (Outbound)
+
+### `GET /api/webhooks/endpoints`
+**Access:** admin
+
+List all registered outbound webhook endpoints for the current workspace.
+
+**Response `200`:** `WebhookEndpointView[]`
+
+---
+
+### `POST /api/webhooks/endpoints`
+**Access:** admin
+
+Register a new outbound webhook endpoint.
+
+**Request body:**
+```json
+{
+  "url": "https://example.com/hooks/auto8",
+  "secret": "my-hmac-secret",
+  "events": ["rfq.created", "quote.approved", "quote.sent"]
+}
+```
+
+**Response `201`:** `WebhookEndpointView`
+
+---
+
+### `PATCH /api/webhooks/endpoints/:id`
+**Access:** admin
+
+Update a webhook endpoint's URL, secret, events, or enabled state.
+
+**Response `200`:** `WebhookEndpointView`
+
+---
+
+### `DELETE /api/webhooks/endpoints/:id`
+**Access:** admin
+
+Remove a webhook endpoint.
+
+**Response `204`**
+
+---
+
+### `POST /api/webhooks/endpoints/:id/test`
+**Access:** admin
+
+Send a test `ping` event to the endpoint. The request is signed with HMAC-SHA256 via `X-Auto8-Signature`.
+
+**Response `200`:** `{ ok: true, statusCode: number }`
+
+---
+
+## Analytics
+
+### `GET /api/analytics/rfq-volume`
+**Access:** admin, sales_approver
+
+Return RFQ intake counts grouped by day for the past 30 days.
+
+**Response `200`:** `RfqVolumePoint[]` — `[{ date: string, count: number }]`
+
+---
+
+### `GET /api/analytics/win-rate`
+**Access:** admin, sales_approver
+
+Return quote win rate (approved / total submitted) for the past 90 days.
+
+**Response `200`:** `WinRateResult` — `{ submitted: number, approved: number, winRate: number }`
+
+---
+
+### `GET /api/analytics/response-time`
+**Access:** admin, sales_approver
+
+Return average time from RFQ receipt to quote approval (in hours) for the past 90 days.
+
+**Response `200`:** `ResponseTimeResult` — `{ avgHours: number | null }`
+
+---
+
+### `GET /api/analytics/top-customers`
+**Access:** admin, sales_approver
+
+Return top 10 customers by number of approved quotes.
+
+**Response `200`:** `TopCustomerView[]` — `[{ customerId, companyName, approvedQuotes, totalRevenue }]`
+
+---
+
+### `GET /api/analytics/connectors`
+**Access:** admin, sales_approver
+
+Return per-connector ingestion stats (total intakes, last sync).
+
+**Response `200`:** `ConnectorStatsView[]` — `[{ connectorId, label, type, totalIntakes, lastSyncAt }]`
+
+---
+
+## Workspace
+
+### `GET /api/workspace`
+**Access:** admin
+
+Return all workspaces.
+
+**Response `200`:** `WorkspaceView[]`
+
+---
+
+### `GET /api/workspace/:id`
+**Access:** admin
+
+Return a single workspace.
+
+**Response `200`:** `WorkspaceView`
+
+---
+
+### `POST /api/workspace`
+**Access:** super_admin
+
+Create a new workspace.
+
+**Request body:** `{ "name": "Acme Corp", "slug": "acme-corp" }`
+
+**Response `201`:** `WorkspaceView`
+
+---
+
+### `PATCH /api/workspace/:id`
+**Access:** admin
+
+Update workspace name or slug.
+
+**Response `200`:** `WorkspaceView`
+
+---
+
+## Customer Portal
+
+### `POST /api/portal/quotes/:quoteId/share`
+**Access:** operator
+
+Generate a magic-link share token for the customer portal. Token is single-use with 24-hour TTL.
+
+**Response `201`:** `ShareLinkResult` — `{ url: string }`
+
+---
+
+### `DELETE /api/portal/quotes/:quoteId/share`
+**Access:** operator
+
+Revoke all active magic-link tokens for this quote.
+
+**Response `204`**
+
+---
+
+### `GET /api/portal/q/:token/data`
+**Access:** public (no auth required)
+
+Return quote data for the customer portal. Returns `401` if token is expired or used.
+
+**Response `200`:** `PortalQuoteView`
+
+---
+
+### `POST /api/portal/q/:token/accept`
+**Access:** public
+
+Customer accepts the quote. Marks token as used, updates quote status to `customer_accepted`.
+
+**Response `200`:** `{ ok: true }`
+
+---
+
+### `POST /api/portal/q/:token/reject`
+**Access:** public
+
+Customer rejects the quote. Marks token as used, updates quote status to `customer_rejected`.
+
+**Request body (optional):** `{ "note": "Price too high" }`
+
+**Response `200`:** `{ ok: true }`
+
+---
+
+### `POST /api/portal/q/:token/revision`
+**Access:** public
+
+Customer requests a revision. Marks token as used, updates quote status to `revision_requested`.
+
+**Request body:** `{ "note": "Please add expedited shipping option" }`
+
+**Response `200`:** `{ ok: true }`
+
+---
+
+## Billing
+
+### `GET /api/billing/subscription`
+**Access:** admin
+
+Return the current workspace's subscription status.
+
+**Response `200`:**
+```json
+{
+  "plan": "trial",
+  "status": "trialing",
+  "trialEndsAt": "2026-06-13T00:00:00.000Z",
+  "stripeCustomerId": null,
+  "sePayOrderCode": null
+}
+```
+
+---
+
+### `POST /api/billing/stripe/checkout`
+**Access:** admin
+
+Create a Stripe Checkout session for upgrading to a paid plan. Returns a redirect URL.
+
+**Response `200`:** `{ "url": "https://checkout.stripe.com/..." }`
+
+---
+
+### `POST /api/billing/stripe/webhook`
+**Access:** public (Stripe signature verification via `stripe-signature` header)
+
+Handle Stripe webhook events (checkout.session.completed, customer.subscription.deleted).
+
+**Response `200`:** `{ "received": true }`
+
+---
+
+### `POST /api/billing/sepay/init`
+**Access:** admin
+
+Initialize a SePay bank transfer order. Returns bank details and a unique order code for the transfer content.
+
+**Response `200`:**
+```json
+{
+  "bankCode": "VCB",
+  "accountNumber": "1234567890",
+  "amount": 500000,
+  "orderCode": "AUTO8-WS-abc123",
+  "transferContent": "AUTO8-WS-abc123"
+}
+```
+
+---
+
+### `POST /api/billing/sepay/confirm`
+**Access:** public (called by SePay webhook or manual verification)
+
+Confirm a SePay bank transfer. Verifies the order code in the transfer content matches an existing workspace order, and the amount matches.
+
+**Request body:** `{ "transferContent": "AUTO8-WS-abc123", "amount": 500000 }`
+
+**Response `200`:** `{ "ok": true }`
+
+**Response `400`:** order code not found or amount mismatch.

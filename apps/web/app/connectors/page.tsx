@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import type React from "react";
 
 import type { ConnectorSyncSummary, ConnectorView, IngestionRunView, PaginatedResponse } from "@auto8/shared";
 
@@ -172,7 +173,7 @@ export default function ConnectorsPage() {
               <tr className="bg-gray-50 text-left">
                 <th className="border px-3 py-2">Label</th>
                 <th className="border px-3 py-2">Type</th>
-                <th className="border px-3 py-2">Status</th>
+                <th className="border px-3 py-2">Health</th>
                 <th className="border px-3 py-2">Last Sync</th>
                 <th className="border px-3 py-2">Failures</th>
                 <th className="border px-3 py-2">Actions</th>
@@ -184,6 +185,22 @@ export default function ConnectorsPage() {
                 const syncSummary = typeof syncRes === "object" ? syncRes as ConnectorSyncSummary : null;
                 const syncErr = typeof syncRes === "string" && syncRes !== "Syncing..." ? syncRes : null;
                 const runs = historyData[c.id] ?? [];
+
+                let healthBadge: React.ReactNode;
+                if (!c.isEnabled) {
+                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500">Disabled</span>;
+                } else if (c.failureCount > 0 || c.lastError) {
+                  healthBadge = (
+                    <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700" title={c.lastError ?? undefined}>
+                      Error
+                    </span>
+                  );
+                } else if (c.lastSyncAt) {
+                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">Connected</span>;
+                } else {
+                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-400">Never synced</span>;
+                }
+
                 return (
                   <>
                     <tr key={c.id}>
@@ -192,9 +209,7 @@ export default function ConnectorsPage() {
                         <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{c.type}</span>
                       </td>
                       <td className="border px-3 py-2">
-                        <span className={`text-xs px-2 py-0.5 rounded ${c.isEnabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                          {c.isEnabled ? "Enabled" : "Disabled"}
-                        </span>
+                        {healthBadge}
                       </td>
                       <td className="border px-3 py-2 font-mono text-xs">
                         {c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString() : "—"}

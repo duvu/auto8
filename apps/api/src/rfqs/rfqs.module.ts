@@ -8,6 +8,7 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { QuoteEmailModule } from "../quote-email/quote-email.module";
 import { RbacModule } from "../rbac/rbac.module";
 import { SlaModule } from "../sla/sla.module";
+import { WebhooksModule } from "../webhooks/webhooks.module";
 import { AiQuoteGenerationService } from "./ai-quote-generation.service";
 import { RfqExtractionService } from "./rfq-extraction.service";
 import { RfqClassificationService } from "./rfq-classification.service";
@@ -16,7 +17,7 @@ import { QuoteWorkflowService } from "./quote-workflow.service";
 import { RfqsController } from "./rfqs.controller";
 
 @Module({
-  imports: [AuditModule, QuoteEmailModule, LlmModule, RbacModule, forwardRef(() => JobsModule), MatchingModule, PrismaModule, SlaModule],
+  imports: [AuditModule, QuoteEmailModule, LlmModule, RbacModule, forwardRef(() => JobsModule), MatchingModule, PrismaModule, SlaModule, WebhooksModule],
   controllers: [RfqsController],
   providers: [RfqIntakeService, QuoteWorkflowService, RfqExtractionService, RfqClassificationService, AiQuoteGenerationService],
   exports: [RfqIntakeService, QuoteWorkflowService, RfqExtractionService],

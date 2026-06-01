@@ -435,6 +435,7 @@ export interface QuoteTemplateView {
   validityDays: number | null;
   currency: string;
   createdById: string;
+  createdByName?: string | null;
   createdAt: string;
   updatedAt: string;
   lineItems: QuoteTemplateLineItemView[];

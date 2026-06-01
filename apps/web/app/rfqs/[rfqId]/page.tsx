@@ -7,7 +7,7 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 import type { CustomerView, GenerateQuoteResult, QuoteLineItemInput, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
 import { SUPPORTED_CURRENCIES, calcQuoteTotals } from "@auto8/shared";
 
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
 import { MatchReviewPanel } from "../../../components/MatchReviewPanel";
 import { QuoteEmailTab } from "../../../components/QuoteEmailTab";
@@ -324,11 +324,8 @@ export default function RfqDetailPage() {
   }
 
   return (
-    <WorkspaceShell
+    <AppShell
       title={`${detail.reference} / Quote Workspace`}
-      description="Review inbound RFQ details, maintain the draft quote, and run the approval handoff without leaving the workflow regardless of source."
-      authUser={authUser}
-      section="RFQs"
     >
       {error ? <div className="error">{error}</div> : null}
       {successMessage ? <div className="success-banner">{successMessage}</div> : null}
@@ -803,6 +800,6 @@ export default function RfqDetailPage() {
           </div>
         )}
       </section>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

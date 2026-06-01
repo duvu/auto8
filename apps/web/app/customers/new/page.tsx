@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { createCustomer } from "../../../lib/api";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
@@ -47,12 +47,7 @@ export default function NewCustomerPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="New Customer"
-      description="Add a customer to your address book."
-      authUser={authResult.user}
-      section="Customers"
-    >
+    <AppShell title="New Customer">
       <div className="mb-4">
         <Link href="/customers" className="text-sm text-muted hover:underline">
           ← Back to Customers
@@ -105,6 +100,6 @@ export default function NewCustomerPage() {
           </div>
         </form>
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

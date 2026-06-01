@@ -9,12 +9,13 @@ import { TemplateQueryDto } from "./dto/template-query.dto";
 export class QuoteTemplatesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateQuoteTemplateDto, createdById: string) {
+  async create(dto: CreateQuoteTemplateDto, createdById: string, workspaceId = "default") {
     const { lineItems, ...rest } = dto;
     return this.prisma.quoteTemplate.create({
       data: {
         ...rest,
         createdById,
+        workspaceId,
         lineItems: lineItems
           ? {
               create: lineItems.map((item, idx) => ({
@@ -31,17 +32,20 @@ export class QuoteTemplatesService {
     });
   }
 
-  async findAll(query: TemplateQueryDto) {
+  async findAll(query: TemplateQueryDto, workspaceId?: string) {
     const { q, page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
-    const where = q
-      ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { description: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-      : {};
+    const where = {
+      ...(workspaceId ? { workspaceId } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" as const } },
+              { description: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
     const [items, total] = await Promise.all([
       this.prisma.quoteTemplate.findMany({
         where,
@@ -52,20 +56,24 @@ export class QuoteTemplatesService {
       }),
       this.prisma.quoteTemplate.count({ where }),
     ]);
-    return { items, total, page, limit };
+    return { data: items, meta: { total, page, limit } };
   }
 
-  async findOne(id: string) {
-    const template = await this.prisma.quoteTemplate.findUnique({
-      where: { id },
+  async findOne(id: string, workspaceId?: string) {
+    const where = workspaceId ? { id, workspaceId } : { id };
+    const template = await this.prisma.quoteTemplate.findFirst({
+      where,
       include: { lineItems: { orderBy: { sortOrder: "asc" } }, createdBy: true },
     });
     if (!template) throw new NotFoundException(`QuoteTemplate ${id} not found`);
-    return template;
+    return {
+      ...template,
+      createdByName: template.createdBy?.name ?? null,
+    };
   }
 
-  async update(id: string, dto: UpdateQuoteTemplateDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateQuoteTemplateDto, workspaceId?: string) {
+    await this.findOne(id, workspaceId);
     const { lineItems, ...rest } = dto;
     return this.prisma.quoteTemplate.update({
       where: { id },
@@ -88,9 +96,37 @@ export class QuoteTemplatesService {
     });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, workspaceId?: string) {
+    await this.findOne(id, workspaceId);
     await this.prisma.quoteTemplateLineItem.deleteMany({ where: { templateId: id } });
     return this.prisma.quoteTemplate.delete({ where: { id } });
+  }
+
+  async duplicate(id: string, workspaceId = "default") {
+    const original = await this.findOne(id, workspaceId);
+    const { lineItems, ...rest } = original;
+    return this.prisma.quoteTemplate.create({
+      data: {
+        name: `Copy of ${rest.name}`,
+        description: rest.description,
+        headerNotes: rest.headerNotes,
+        paymentTerms: rest.paymentTerms,
+        deliveryTerms: rest.deliveryTerms,
+        validityDays: rest.validityDays,
+        currency: rest.currency,
+        createdById: rest.createdById,
+        workspaceId,
+        lineItems: {
+          create: lineItems.map((item, idx) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            sortOrder: item.sortOrder ?? idx,
+            productId: item.productId,
+          })),
+        },
+      },
+      include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+    });
   }
 }

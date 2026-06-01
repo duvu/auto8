@@ -8,7 +8,7 @@ import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
 import { getConnector, testConnector, updateConnector } from "../../../../lib/api";
 import { ConnectorCredentialForm } from "../../../../components/connector-credential-form";
-import { WorkspaceShell } from "../../../../components/workspace-shell";
+import { AppShell } from "../../../../components/app-shell";
 import { useRequireAuth } from "../../../../lib/use-require-auth";
 
 export default function EditConnectorPage({ params }: { params: { id: string } }) {
@@ -103,27 +103,22 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
 
   if (loading)
     return (
-      <WorkspaceShell title="Edit Connector" description="" authUser={authResult.user} section="Connectors">
+      <AppShell title="Edit Connector">
         <div className="p-6 text-gray-500">Loading connector...</div>
-      </WorkspaceShell>
+      </AppShell>
     );
 
   if (!connector)
     return (
-      <WorkspaceShell title="Edit Connector" description="" authUser={authResult.user} section="Connectors">
+      <AppShell title="Edit Connector">
         <div className="p-6 text-red-600">Connector not found.</div>
-      </WorkspaceShell>
+      </AppShell>
     );
 
   const connectorType = connector.type as ConnectorType;
 
   return (
-    <WorkspaceShell
-      title="Edit Connector"
-      description={`${connector.type} — ${connector.id}`}
-      authUser={authResult.user}
-      section="Connectors"
-    >
+    <AppShell title="Edit Connector">
       <div className="max-w-2xl mx-auto">
         {connectedBanner && (
           <div className="bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm">
@@ -213,6 +208,6 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
           </div>
         </form>
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

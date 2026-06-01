@@ -5,19 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import type { QuoteTemplateView } from "@auto8/shared";
-import { SUPPORTED_CURRENCIES } from "@auto8/shared";
 
-import { WorkspaceShell } from "../../../components/workspace-shell";
-import { getQuoteTemplate, updateQuoteTemplate } from "../../../lib/api";
+import { AppShell } from "../../../components/app-shell";
+import {
+  QuoteTemplateForm,
+  type QuoteTemplateFormValues,
+} from "../../../components/quote-template-form";
+import { duplicateTemplate, getQuoteTemplate, updateQuoteTemplate } from "../../../lib/api";
 import { useRequireAuth } from "../../../lib/use-require-auth";
-
-interface LineItemDraft {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  sortOrder: number;
-  productId?: string;
-}
 
 export default function EditQuoteTemplatePage() {
   const authResult = useRequireAuth("admin");
@@ -27,16 +22,18 @@ export default function EditQuoteTemplatePage() {
   const [template, setTemplate] = useState<QuoteTemplateView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [headerNotes, setHeaderNotes] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState("");
-  const [deliveryTerms, setDeliveryTerms] = useState("");
-  const [validityDays, setValidityDays] = useState("");
-  const [currency, setCurrency] = useState("USD");
-  const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
+  const [values, setValues] = useState<QuoteTemplateFormValues>({
+    name: "",
+    description: "",
+    headerNotes: "",
+    paymentTerms: "",
+    deliveryTerms: "",
+    validityDays: "",
+    currency: "USD",
+    lineItems: [],
+  });
 
   useEffect(() => {
     if (!params.id) return;
@@ -44,41 +41,28 @@ export default function EditQuoteTemplatePage() {
     getQuoteTemplate(params.id)
       .then((t) => {
         setTemplate(t);
-        setName(t.name);
-        setDescription(t.description ?? "");
-        setHeaderNotes(t.headerNotes ?? "");
-        setPaymentTerms(t.paymentTerms ?? "");
-        setDeliveryTerms(t.deliveryTerms ?? "");
-        setValidityDays(t.validityDays != null ? String(t.validityDays) : "");
-        setCurrency(t.currency);
-        setLineItems(
-          t.lineItems.map((li) => ({
+        setValues({
+          name: t.name,
+          description: t.description ?? "",
+          headerNotes: t.headerNotes ?? "",
+          paymentTerms: t.paymentTerms ?? "",
+          deliveryTerms: t.deliveryTerms ?? "",
+          validityDays: t.validityDays != null ? String(t.validityDays) : "",
+          currency: t.currency,
+          lineItems: t.lineItems.map((li) => ({
             description: li.description,
             quantity: li.quantity,
             unitPrice: li.unitPrice,
             sortOrder: li.sortOrder,
             productId: li.productId ?? undefined,
-          }))
-        );
+          })),
+        });
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load template"))
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : "Failed to load template"),
+      )
       .finally(() => setLoading(false));
   }, [params.id]);
-
-  const addLineItem = () => {
-    setLineItems((prev) => [
-      ...prev,
-      { description: "", quantity: 1, unitPrice: 0, sortOrder: prev.length },
-    ]);
-  };
-
-  const updateLineItem = (index: number, field: keyof LineItemDraft, value: string | number) => {
-    setLineItems((prev) => prev.map((li, i) => (i === index ? { ...li, [field]: value } : li)));
-  };
-
-  const removeLineItem = (index: number) => {
-    setLineItems((prev) => prev.filter((_, i) => i !== index).map((li, i) => ({ ...li, sortOrder: i })));
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,14 +71,14 @@ export default function EditQuoteTemplatePage() {
     setError(null);
     try {
       await updateQuoteTemplate(template.id, {
-        name,
-        description: description || undefined,
-        headerNotes: headerNotes || undefined,
-        paymentTerms: paymentTerms || undefined,
-        deliveryTerms: deliveryTerms || undefined,
-        validityDays: validityDays ? parseInt(validityDays, 10) : undefined,
-        currency,
-        lineItems,
+        name: values.name,
+        description: values.description || undefined,
+        headerNotes: values.headerNotes || undefined,
+        paymentTerms: values.paymentTerms || undefined,
+        deliveryTerms: values.deliveryTerms || undefined,
+        validityDays: values.validityDays ? parseInt(values.validityDays, 10) : undefined,
+        currency: values.currency,
+        lineItems: values.lineItems,
       });
       router.push("/quote-templates");
     } catch (err) {
@@ -104,123 +88,54 @@ export default function EditQuoteTemplatePage() {
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!template) return;
+    setDuplicating(true);
+    setError(null);
+    try {
+      const copy = await duplicateTemplate(template.id);
+      router.push(`/quote-templates/${copy.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to duplicate");
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
   if (!authResult) return null;
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="Edit Template"
-      description="Update quote template details and line items."
-      authUser={authResult.user}
-      section="Templates"
-    >
-      <div className="mb-4">
+    <AppShell title="Edit Template">
+      <div className="mb-4 flex items-center justify-between">
         <Link href="/quote-templates" className="text-sm text-muted hover:underline">
           ← Back to Templates
         </Link>
+        {template && (
+          <button
+            type="button"
+            onClick={() => void handleDuplicate()}
+            disabled={duplicating}
+            className="btn btn-secondary text-xs"
+          >
+            {duplicating ? "Duplicating…" : "Duplicate"}
+          </button>
+        )}
       </div>
 
       {loading && <p className="text-sm text-muted">Loading…</p>}
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
       {!loading && template && (
-        <form onSubmit={(e) => void handleSave(e)} className="space-y-6 max-w-2xl">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-ink mb-1">Template Name *</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="input w-full" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-ink mb-1">Description</label>
-              <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="input w-full" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1">Currency</label>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-full">
-                {SUPPORTED_CURRENCIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1">Validity (days)</label>
-              <input type="number" min="1" value={validityDays} onChange={(e) => setValidityDays(e.target.value)} placeholder="30" className="input w-full" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1">Payment Terms</label>
-              <input type="text" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="Net 30" className="input w-full" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1">Delivery Terms</label>
-              <input type="text" value={deliveryTerms} onChange={(e) => setDeliveryTerms(e.target.value)} placeholder="EXW" className="input w-full" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-ink mb-1">Header Notes</label>
-              <textarea value={headerNotes} onChange={(e) => setHeaderNotes(e.target.value)} rows={2} className="input w-full" />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-ink">Line Items</h3>
-              <button type="button" onClick={addLineItem} className="btn btn-secondary text-xs">
-                + Add Line
-              </button>
-            </div>
-            {lineItems.length === 0 ? (
-              <p className="text-sm text-muted">No line items yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {lineItems.map((li, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                    <input
-                      type="text"
-                      value={li.description}
-                      onChange={(e) => updateLineItem(i, "description", e.target.value)}
-                      placeholder="Description"
-                      className="input col-span-6"
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      value={li.quantity}
-                      onChange={(e) => updateLineItem(i, "quantity", parseInt(e.target.value, 10) || 1)}
-                      className="input col-span-2"
-                      title="Quantity"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={li.unitPrice}
-                      onChange={(e) => updateLineItem(i, "unitPrice", parseFloat(e.target.value) || 0)}
-                      className="input col-span-3"
-                      title="Unit Price"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeLineItem(i)}
-                      className="col-span-1 text-red-500 hover:text-red-700 text-sm"
-                      title="Remove line"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? "Saving…" : "Save Template"}
-            </button>
-            <Link href="/quote-templates" className="btn btn-secondary">
-              Cancel
-            </Link>
-          </div>
-        </form>
+        <QuoteTemplateForm
+          values={values}
+          onChange={setValues}
+          onSubmit={handleSave}
+          loading={saving}
+          submitLabel="Save Template"
+          onCancel={() => router.push("/quote-templates")}
+        />
       )}
-    </WorkspaceShell>
+    </AppShell>
   );
 }

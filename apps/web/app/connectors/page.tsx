@@ -9,7 +9,7 @@ import type { ConnectorSyncSummary, ConnectorView, IngestionRunView, PaginatedRe
 
 import { deleteConnector, getConnectorRuns, getConnectors, syncConnectorNow, testConnector, updateConnector } from "../../lib/api";
 import { useRequireAuth } from "../../lib/use-require-auth";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 
 function OAuth2ErrorBanner() {
   const searchParams = useSearchParams();
@@ -146,7 +146,7 @@ export default function ConnectorsPage() {
   }
 
   return (
-    <WorkspaceShell title="Connectors" description="Manage Gmail, Slack, and Outlook connectors for RFQ ingestion." authUser={authResult.user} section="Connectors">
+    <AppShell title="Connectors">
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div />
@@ -282,6 +282,6 @@ export default function ConnectorsPage() {
         </div>
       )}
     </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

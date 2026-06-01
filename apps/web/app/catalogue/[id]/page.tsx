@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { ProductView } from "@auto8/shared";
 import { getProduct, updateProduct, reactivateProduct, deleteProduct, updateProductMarkup } from "../../../lib/api";
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 export default function CatalogueEditPage() {
@@ -122,7 +122,7 @@ export default function CatalogueEditPage() {
   if (!product && !loading) return <div className="p-6 text-red-600">Product not found.</div>;
 
   return (
-    <WorkspaceShell title="Edit Product" description="Update product details." authUser={authResult.user} section="Catalogue">
+    <AppShell title="Edit Product">
     <div className="p-6 max-w-lg">
       <div className="flex items-center gap-3 mb-6">
         <a href="/catalogue" className="text-blue-600 hover:underline text-sm">
@@ -301,6 +301,6 @@ export default function CatalogueEditPage() {
         </div>
       )}
     </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

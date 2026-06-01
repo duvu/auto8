@@ -408,6 +408,10 @@ export function deleteQuoteTemplate(id: string) {
   return request<void>(`/quote-templates/${id}`, { method: "DELETE" });
 }
 
+export function duplicateTemplate(id: string) {
+  return request<QuoteTemplateView>(`/quote-templates/${id}/duplicate`, { method: "POST" });
+}
+
 // Catalogue markup
 export function updateProductMarkup(id: string, defaultMarkup: number) {
   return request<ProductView>(`/catalogue/${id}/markup`, { method: "PATCH", body: JSON.stringify({ defaultMarkup }) });

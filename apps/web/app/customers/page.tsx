@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { CustomerView, PaginatedResponse } from "@auto8/shared";
 
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { deleteCustomer, getCustomers } from "../../lib/api";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
@@ -48,12 +48,7 @@ export default function CustomersPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="Customers"
-      description="Address book for your RFQ customers."
-      authUser={authResult.user}
-      section="Customers"
-    >
+    <AppShell title="Customers">
       <div className="flex items-center gap-3 mb-4">
         <input
           type="text"
@@ -140,6 +135,6 @@ export default function CustomersPage() {
           </div>
         </>
       )}
-    </WorkspaceShell>
+    </AppShell>
   );
 }

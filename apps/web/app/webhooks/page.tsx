@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 import { WebhookEndpointView, listWebhookEndpoints, createWebhookEndpoint, deleteWebhookEndpoint, testWebhookEndpoint } from "../../lib/api";
 
@@ -122,12 +122,7 @@ export default function WebhooksPage() {
   }
 
   return (
-    <WorkspaceShell
-      title="Webhooks"
-      description="Manage outbound webhook endpoints to receive notifications on various events."
-      authUser={authResult.user}
-      section="Settings"
-    >
+    <AppShell title="Webhooks">
       <div className="p-6 max-w-5xl">
         {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
         {success && <div className="bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm">{success}</div>}
@@ -263,6 +258,6 @@ export default function WebhooksPage() {
           </div>
         </div>
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

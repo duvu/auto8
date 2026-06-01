@@ -1,5 +1,7 @@
 {
   "nav": {
+    "rfqs": "RFQs",
+    "search": "Tìm kiếm...",
     "catalogue": "Danh mục",
     "customers": "Khách hàng",
     "jobs": "Công việc",

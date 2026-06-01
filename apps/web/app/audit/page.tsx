@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AuditLogTable } from "../../components/AuditLogTable";
 import { getAuditLogs } from "../../lib/api";
 import type { AuditLogView } from "@auto8/shared";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 const RESOURCE_TYPES = ["", "rfq", "quote", "quote_email"];
@@ -45,12 +45,7 @@ export default function AuditPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="Audit Logs"
-      description="Search and inspect system audit events."
-      authUser={authResult.user}
-      section="Audit"
-    >
+    <AppShell title="Audit Logs">
       <div className="p-6 max-w-5xl">
         <form onSubmit={handleSearch} className="bg-white border border-gray-200 rounded p-4 mb-6 space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -106,6 +101,6 @@ export default function AuditPage() {
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
         {logs !== null && <AuditLogTable logs={logs} />}
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

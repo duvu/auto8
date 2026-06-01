@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { BackgroundJobView, PaginatedResponse } from "@auto8/shared";
 import { getJobs } from "../../lib/api";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function JobsPage() {
@@ -55,12 +55,7 @@ export default function JobsPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="Background Jobs"
-      description="Monitor and inspect background job execution."
-      authUser={authResult.user}
-      section="Jobs"
-    >
+    <AppShell title="Background Jobs">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => void load()} className="border rounded px-3 py-1.5 text-sm hover:bg-gray-50">
@@ -164,6 +159,6 @@ export default function JobsPage() {
           </>
         )}
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

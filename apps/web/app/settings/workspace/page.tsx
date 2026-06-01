@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { getWorkspace, updateWorkspace, type WorkspaceView } from "../../../lib/api";
 import { API_BASE_URL } from "../../../lib/config";
@@ -76,12 +76,7 @@ export default function WorkspaceSettingsPage() {
   }
 
   return (
-    <WorkspaceShell
-      title="Workspace Settings"
-      description="Manage your workspace name and identifier."
-      authUser={auth.user}
-      section="Settings"
-    >
+    <AppShell title="Workspace Settings">
       <div className="max-w-lg">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
@@ -148,6 +143,6 @@ export default function WorkspaceSettingsPage() {
           </button>
         </form>
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

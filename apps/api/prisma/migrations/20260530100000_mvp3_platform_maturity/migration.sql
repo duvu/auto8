@@ -1,3 +1,13 @@
+-- Workspace table
+CREATE TABLE IF NOT EXISTS "Workspace" (
+  id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "Workspace_pkey" PRIMARY KEY (id)
+);
+
 -- Workspace unique index + default row
 CREATE UNIQUE INDEX IF NOT EXISTS "Workspace_slug_key" ON "Workspace"(slug);
 INSERT INTO "Workspace" (id, name, slug, "createdAt", "updatedAt")

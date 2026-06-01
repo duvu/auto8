@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 
 import { PrismaModule } from "../prisma/prisma.module";
 import { JobsModule } from "../jobs/jobs.module";
@@ -8,7 +8,7 @@ import { WebhookDeliveryService } from "./webhook-delivery.service";
 import { WebhookEmitterService, WEBHOOK_EMITTER_TOKEN } from "./webhook-emitter.service";
 
 @Module({
-  imports: [PrismaModule, JobsModule],
+  imports: [PrismaModule, forwardRef(() => JobsModule)],
   controllers: [WebhookEndpointController],
   providers: [
     WebhookEndpointService,

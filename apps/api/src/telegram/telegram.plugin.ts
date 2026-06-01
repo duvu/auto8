@@ -1,15 +1,15 @@
 import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
-import type { ConnectorPluginManifest } from "../plugin-registry/plugin.interfaces";
+import { TelegramConnectorService } from "./telegram-connector.service";
 import { TelegramModule } from "./telegram.module";
+import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
 
-export const TelegramPlugin: ConnectorPluginManifest = {
+export const TelegramPlugin: PluginManifest = {
   name: "telegram",
   module: TelegramModule,
   connector: {
     type: "telegram",
-    serviceToken: "TelegramConnectorService",
-    module: TelegramModule,
+    serviceToken: TelegramConnectorService,
     fieldDefs: CONNECTOR_FIELD_DEFS["telegram"],
     syncable: false,
   },

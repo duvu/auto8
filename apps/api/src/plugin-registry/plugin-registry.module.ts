@@ -1,35 +1,22 @@
-import { DynamicModule, Global, Module, OnModuleInit } from "@nestjs/common";
-import { ModuleRef } from "@nestjs/core";
+import { DynamicModule, Global, Module } from "@nestjs/common";
 
-import type { PluginManifest } from "./plugin.interfaces";
+import { PLUGIN_MANIFESTS_TOKEN, type PluginManifest } from "./plugin.interfaces";
 import { PluginRegistryService } from "./plugin-registry.service";
 
 @Global()
 @Module({})
-export class PluginRegistryModule implements OnModuleInit {
-  private static manifests: PluginManifest[] = [];
-
+export class PluginRegistryModule {
   static register(manifests: PluginManifest[]): DynamicModule {
-    PluginRegistryModule.manifests = manifests;
-
-    // Collect all plugin module classes for import
     const pluginModules = manifests.map((m) => m.module);
 
     return {
       module: PluginRegistryModule,
       imports: pluginModules,
-      providers: [PluginRegistryService],
+      providers: [
+        { provide: PLUGIN_MANIFESTS_TOKEN, useValue: manifests },
+        PluginRegistryService,
+      ],
       exports: [PluginRegistryService],
     };
-  }
-
-  constructor(
-    private readonly registry: PluginRegistryService,
-    private readonly moduleRef: ModuleRef,
-  ) {}
-
-  onModuleInit(): void {
-    this.registry.register(PluginRegistryModule.manifests);
-    this.registry.validate(this.moduleRef);
   }
 }

@@ -550,6 +550,36 @@ async function requestPublic<T>(path: string, init?: RequestInit): Promise<T> {
   throw new Error(message);
 }
 
+// Billing
+export interface SubscriptionView {
+  enabled?: boolean;
+  plan: string | null;
+  status: string;
+  trialEndsAt: string | null;
+  stripeCustomerId: string | null;
+  stripeSubId?: string | null;
+  sePayOrderCode?: string | null;
+}
+
+export interface SePayOrderView {
+  orderCode: string;
+  bankAccount: string;
+  bankCode: string;
+  amount: number;
+}
+
+export function getSubscription(): Promise<SubscriptionView> {
+  return request<SubscriptionView>("/billing/subscription");
+}
+
+export function createStripeCheckout(): Promise<{ url: string }> {
+  return request<{ url: string }>("/billing/stripe/checkout", { method: "POST" });
+}
+
+export function initSePayOrder(): Promise<SePayOrderView> {
+  return request<SePayOrderView>("/billing/sepay/init", { method: "POST" });
+}
+
 export function createPortalShareLink(quoteId: string) {
   return request<ShareLinkResult>(`/portal/quotes/${quoteId}/share`, { method: "POST" });
 }

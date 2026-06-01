@@ -125,7 +125,7 @@ export function WorkspaceShell({
             className="text-sm px-3 py-1.5 rounded-md text-muted hover:text-ink hover:bg-accent-soft transition-colors"
             onClick={() => setMenuOpen(false)}
           >
-            Billing
+            {t("billing")}
           </Link>
         </>
       )}

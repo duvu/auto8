@@ -308,7 +308,7 @@ export class ConnectorRegistryService implements OnModuleInit {
     try {
       return this.moduleRef.get<ConnectorService>(plugin.serviceToken, { strict: false });
     } catch {
-      this.logger.warn(`Could not resolve service for connector type "${type}" (token: ${plugin.serviceToken})`);
+      this.logger.warn(`Could not resolve service for connector type "${type}" (token: ${String(plugin.serviceToken)})`);
       return undefined;
     }
   }

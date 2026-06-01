@@ -80,7 +80,7 @@ export default function LoginPage() {
               {t("forgotPassword")}
             </Link>
             <Link href="/signup" className="text-sm text-accent hover:underline">
-              Create an account
+              Don&apos;t have an account? Sign up
             </Link>
           </div>
         </form>

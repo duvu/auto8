@@ -1,20 +1,21 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import type { ConnectorType } from "@auto8/shared";
 
-import type { ConnectorPlugin, PluginManifest } from "./plugin.interfaces";
+import { PLUGIN_MANIFESTS_TOKEN, type ConnectorPlugin, type PluginManifest } from "./plugin.interfaces";
 
 @Injectable()
-export class PluginRegistryService {
+export class PluginRegistryService implements OnModuleInit {
   private readonly logger = new Logger(PluginRegistryService.name);
   private readonly connectorPlugins = new Map<string, ConnectorPlugin>();
-  private readonly webhookEvents: string[] = [];
-  private readonly manifests: PluginManifest[] = [];
 
-  register(manifests: PluginManifest[]): void {
-    for (const manifest of manifests) {
-      this.manifests.push(manifest);
+  constructor(
+    @Inject(PLUGIN_MANIFESTS_TOKEN) private readonly manifests: PluginManifest[],
+    private readonly moduleRef: ModuleRef,
+  ) {}
 
+  onModuleInit(): void {
+    for (const manifest of this.manifests) {
       if (manifest.connector) {
         const { type } = manifest.connector;
         if (this.connectorPlugins.has(type)) {
@@ -25,15 +26,9 @@ export class PluginRegistryService {
         this.connectorPlugins.set(type, manifest.connector);
         this.logger.log(`Registered connector plugin: ${type} (${manifest.name})`);
       }
-
-      if (manifest.webhookEvents && manifest.webhookEvents.length > 0) {
-        for (const event of manifest.webhookEvents) {
-          if (!this.webhookEvents.includes(event)) {
-            this.webhookEvents.push(event);
-          }
-        }
-      }
     }
+
+    this.validate();
   }
 
   getConnectorPlugin(type: ConnectorType | string): ConnectorPlugin | undefined {
@@ -44,31 +39,13 @@ export class PluginRegistryService {
     return Array.from(this.connectorPlugins.values());
   }
 
-  getAllWebhookEvents(): string[] {
-    return [...this.webhookEvents];
-  }
-
-  getAllManifests(): PluginManifest[] {
-    return [...this.manifests];
-  }
-
-  validate(moduleRef: ModuleRef): void {
-    // Log declared job handlers for discoverability
-    for (const manifest of this.manifests) {
-      if (manifest.jobHandlers && manifest.jobHandlers.length > 0) {
-        for (const jh of manifest.jobHandlers) {
-          this.logger.log(`Plugin "${manifest.name}" declares job handler: ${jh.type}`);
-        }
-      }
-    }
-
-    // Warn if connector service token cannot be resolved at startup
+  private validate(): void {
     for (const plugin of this.connectorPlugins.values()) {
       try {
-        moduleRef.get(plugin.serviceToken, { strict: false });
+        this.moduleRef.get(plugin.serviceToken, { strict: false });
       } catch {
-        this.logger.warn(
-          `[PluginRegistry] Connector plugin "${plugin.type}" declares serviceToken "${plugin.serviceToken}" but it cannot be resolved. Check that its module is imported.`,
+        throw new Error(
+          `[PluginRegistry] Connector plugin "${plugin.type}" declares serviceToken "${plugin.serviceToken.name}" but it cannot be resolved from the module context. Ensure its module is imported in PluginRegistryModule.register([...]).`,
         );
       }
     }

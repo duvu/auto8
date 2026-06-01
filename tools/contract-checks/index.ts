@@ -309,6 +309,54 @@ if (hardcodedPushOnly) {
 }
 
 // ---------------------------------------------------------------------------
+// 8. Plugin architecture fixes — enforce clean interface contracts
+// ---------------------------------------------------------------------------
+
+const pluginInterfacesPath = join(root, "apps/api/src/plugin-registry/plugin.interfaces.ts");
+const pluginInterfacesSrc = readFileSync(pluginInterfacesPath, "utf8");
+
+if (!pluginInterfacesSrc.includes("export const PLUGIN_MANIFESTS_TOKEN")) {
+  fail("plugin.interfaces.ts does not export PLUGIN_MANIFESTS_TOKEN");
+} else {
+  pass("plugin.interfaces.ts exports PLUGIN_MANIFESTS_TOKEN");
+}
+
+if (pluginInterfacesSrc.includes("jobHandlers") || pluginInterfacesSrc.includes("webhookEvents")) {
+  fail("plugin.interfaces.ts still contains jobHandlers or webhookEvents (should be removed)");
+} else {
+  pass("plugin.interfaces.ts has no jobHandlers/webhookEvents (correctly removed)");
+}
+
+const connectorPluginBlockMatch = pluginInterfacesSrc.match(/export interface ConnectorPlugin \{[\s\S]*?\}/);
+if (connectorPluginBlockMatch) {
+  const connectorPluginBlock = connectorPluginBlockMatch[0];
+  if (connectorPluginBlock.includes("module:")) {
+    fail("ConnectorPlugin interface still has a 'module' field (should be removed — redundant with PluginManifest.module)");
+  } else {
+    pass("ConnectorPlugin interface has no redundant 'module' field");
+  }
+  if (!connectorPluginBlock.includes("serviceToken: Type<")) {
+    fail("ConnectorPlugin.serviceToken should be Type<unknown> (class ref), not a string");
+  } else {
+    pass("ConnectorPlugin.serviceToken is Type<unknown> (class reference, not string)");
+  }
+} else {
+  fail("Could not find ConnectorPlugin interface in plugin.interfaces.ts");
+}
+
+for (const t of connectorTypes) {
+  const pluginFilePath = join(root, `apps/api/src/${t}/${t}.plugin.ts`);
+  if (existsSync(pluginFilePath)) {
+    const src = readFileSync(pluginFilePath, "utf8");
+    if (/serviceToken\s*:\s*["']/.test(src)) {
+      fail(`${t}.plugin.ts uses a string literal for serviceToken (must use class reference)`);
+    } else {
+      pass(`${t}.plugin.ts uses class reference for serviceToken`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 

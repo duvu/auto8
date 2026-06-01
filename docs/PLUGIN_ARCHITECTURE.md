@@ -43,46 +43,47 @@ These declarations are structural metadata only — they do not wire anything at
 import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
 import { ZaloModule } from "./zalo.module";
+import { ZaloConnectorService } from "./zalo-connector.service";
 
 export const ZaloPlugin: PluginManifest = {
-  name: "zalo",
+  name: "ZaloPlugin",
   module: ZaloModule,
   connector: {
     type: "zalo",
-    serviceToken: "ZaloConnectorService",
-    module: ZaloModule,
+    serviceToken: ZaloConnectorService,
     fieldDefs: CONNECTOR_FIELD_DEFS["zalo"],
+    syncable: false,
   },
-  jobHandlers: [],
-  webhookEvents: [],
 };
 ```
+
+`jobHandlers` and `webhookEvents` are intentionally omitted. Job handler registration happens in each service's own `onModuleInit()`, and event emission happens via `WebhookEmitterService`. The manifest only declares the connector.
 
 ### The manifest interfaces
 
 ```ts
 // apps/api/src/plugin-registry/plugin.interfaces.ts
 
-interface ConnectorPlugin {
-  type: ConnectorType;        // must match CONNECTOR_TYPES in @auto8/shared
-  serviceToken: string;       // NestJS provider token — must match the class name
-  module: Type<unknown>;      // the NestJS module class
-  fieldDefs: ConnectorFieldDef[]; // credential fields rendered by the UI form
-}
+export const PLUGIN_MANIFESTS_TOKEN = "PLUGIN_MANIFESTS_TOKEN";
 
-interface JobHandlerDeclaration {
-  type: string;        // must match the string passed to JobsService.registerHandler()
-  description: string; // human label — used by verify:contracts
+interface ConnectorPlugin {
+  type: ConnectorType;             // must match CONNECTOR_TYPES in @auto8/shared
+  serviceToken: Type<unknown>;     // class reference to the connector service (rename-safe)
+  fieldDefs: ConnectorFieldDef[];  // credential fields rendered by the UI form
+  syncable: boolean;               // true = pull-based (supports manual sync); false = push-only
 }
 
 interface PluginManifest {
-  name: string;                          // human label — unique across plugins
-  module: Type<unknown>;                 // the NestJS module class to be imported
-  connector?: ConnectorPlugin;           // present when this plugin handles a channel
-  jobHandlers?: JobHandlerDeclaration[]; // present when this module registers job handlers
-  webhookEvents?: string[];              // present when this module emits webhook events
+  name: string;                // human label — unique across plugins
+  module: Type<unknown>;       // the NestJS module class to be imported
+  connector?: ConnectorPlugin; // present when this plugin handles a channel
 }
 ```
+
+Key design decisions:
+- `serviceToken` is a **class reference** (`Type<unknown>`), not a string — rename-safe and verifiable at startup
+- `ConnectorPlugin` has no `module` field — `PluginManifest.module` already declares the module
+- No `jobHandlers` or `webhookEvents` fields — actual job handler registration is in each service's `onModuleInit()`
 
 ### Registration in AppModule
 
@@ -196,11 +197,11 @@ await this.rfqIntakeService.createRfqFromIntake(intake);
 
 ### 2. Job-handler plugin
 
-A job-handler plugin declares and registers background jobs processed by the `JobsService` CRON loop (every 5 seconds).
+A job-handler plugin registers background jobs processed by the `JobsService` CRON loop (every 5 seconds).
 
 **Required pieces:**
 - A service that calls `JobsService.registerHandler()` in its `onModuleInit()`
-- A `PluginManifest` with `jobHandlers` listing the types it registers
+- A `PluginManifest` with the module class (no `jobHandlers` field needed)
 
 **Self-registration pattern:**
 
@@ -233,22 +234,21 @@ await this.jobsService.enqueue("webhook_deliver", {
 });
 ```
 
-`JobType` is `string` — no central union to update when adding new job types. The declared `type` in `jobHandlers` must match the string passed to `registerHandler()` exactly. `verify:contracts` checks this.
+`JobType` is `string` — no central union to update when adding new job types. The `type` string passed to `registerHandler()` and `enqueue()` must match exactly.
 
 ---
 
-### 3. Webhook-event plugin
+### 3. Webhook-event emission
 
-A plugin that emits outbound webhook events declares them in `webhookEvents`. This is **declarative only** — it does not wire anything. It exists so `verify:contracts` can enumerate all known events.
+Inject `WebhookEmitterService` into any service and call `emit()` with any string event name.
 
 **Emitting events at runtime:**
 
 ```ts
-// inject WebhookEmitterService and call:
 await this.webhookEmitter.emit("rfq.created", { rfqId: rfq.id });
 ```
 
-`WebhookEmitterService` queries all enabled `WebhookEndpoint` records that subscribe to the event and enqueues a `webhook_deliver` job for each one. The `webhookEvents` declaration in the manifest is metadata only — any string can be emitted at any time.
+`WebhookEmitterService` queries all enabled `WebhookEndpoint` records that subscribe to the event and enqueues a `webhook_deliver` job for each one. No central registry of event names is required — any string can be emitted at any time.
 
 ---
 
@@ -261,19 +261,17 @@ AppModule initializes
     ↓
 PluginRegistryModule.register([...plugins]) called
     → DynamicModule returned with:
-        imports: [ZaloModule, GmailModule, ..., WebhooksModule, RfqsModule, QuotesModule]
-        providers: [PluginRegistryService]
+        providers: [{ provide: PLUGIN_MANIFESTS_TOKEN, useValue: manifests }, PluginRegistryService]
+        imports: [ZaloModule, GmailModule, ..., WebhooksModule, RfqsModule, QuotesPlugin.module]
         exports: [PluginRegistryService]
     ↓
 NestJS bootstraps all plugin modules (DI graph constructed)
     ↓
-PluginRegistryModule.onModuleInit()
-    → registry.register([...manifests])
-        → for each manifest with connector:
-            connectorPlugins.set(type, plugin)
-        → collects webhookEvents[]
-    → registry.validate()
-        → logs declared jobHandlers for discoverability
+PluginRegistryService.onModuleInit()
+    → iterates manifests, registers connector plugins by type
+    → calls validate():
+        → for each connector plugin, tries ModuleRef.get(plugin.serviceToken)
+        → throws Error if service cannot be resolved (fail-fast at startup)
     ↓
 Each plugin module's own onModuleInit() runs
     → e.g. WebhookDeliveryService.registerHandler("webhook_deliver", ...)
@@ -290,17 +288,17 @@ ConnectorRegistryService.testConnector(id)
 resolveConnectorService(connector.type)
     ↓
 PluginRegistryService.getConnectorPlugin("zalo")
-    → returns: { type: "zalo", serviceToken: "ZaloConnectorService", ... }
+    → returns: { type: "zalo", serviceToken: ZaloConnectorService, syncable: false, ... }
     ↓
-ModuleRef.get("ZaloConnectorService", { strict: false })
+ModuleRef.get(ZaloConnectorService, { strict: false })
     → returns: live ZaloConnectorService instance from NestJS DI
     ↓
 service.testConnector(connector)
 ```
 
-`ModuleRef.get(token, { strict: false })` searches the entire NestJS module graph for a provider matching the token. The token is the **class name as a string** — which is the default NestJS injection token when a class is listed in `providers: [ZaloConnectorService]`.
+`ModuleRef.get(token, { strict: false })` searches the entire NestJS module graph for a provider matching the token. The token is the **class itself** — which is the default NestJS injection token when a class is listed in `providers: [ZaloConnectorService]`.
 
-The registry never imports the service class directly. This is intentional — it means `connector-registry` has zero compile-time dependency on any connector implementation.
+The registry never imports the service class for calling — it uses the class reference purely as a DI token. `connector-registry` has no compile-time dependency on any connector implementation.
 
 ### Global availability
 
@@ -312,15 +310,15 @@ The registry never imports the service class directly. This is intentional — i
 
 | File | Type | Declares |
 |---|---|---|
-| `gmail/gmail.plugin.ts` | Connector | `type: "gmail"`, `serviceToken: "GmailConnectorService"` |
-| `slack/slack.plugin.ts` | Connector | `type: "slack"`, `serviceToken: "SlackConnectorService"` |
-| `outlook/outlook.plugin.ts` | Connector | `type: "outlook"`, `serviceToken: "OutlookConnectorService"` |
-| `whatsapp/whatsapp.plugin.ts` | Connector | `type: "whatsapp"`, `serviceToken: "WhatsappConnectorService"` |
-| `telegram/telegram.plugin.ts` | Connector | `type: "telegram"`, `serviceToken: "TelegramConnectorService"` |
-| `zalo/zalo.plugin.ts` | Connector | `type: "zalo"`, `serviceToken: "ZaloConnectorService"` |
-| `rfqs/rfqs.plugin.ts` | Job + Event | `rfq_extract`, `attachment_parse` / `rfq.created` |
-| `quotes/quotes.plugin.ts` | Job + Event | `sheet_export` / `quote.approved`, `quote.sent` |
-| `webhooks/webhooks.plugin.ts` | Job | `webhook_deliver` |
+| `gmail/gmail.plugin.ts` | Connector | `type: "gmail"`, `serviceToken: GmailConnectorService`, `syncable: true` |
+| `slack/slack.plugin.ts` | Connector | `type: "slack"`, `serviceToken: SlackConnectorService`, `syncable: false` |
+| `outlook/outlook.plugin.ts` | Connector | `type: "outlook"`, `serviceToken: OutlookConnectorService`, `syncable: true` |
+| `whatsapp/whatsapp.plugin.ts` | Connector | `type: "whatsapp"`, `serviceToken: WhatsappConnectorService`, `syncable: false` |
+| `telegram/telegram.plugin.ts` | Connector | `type: "telegram"`, `serviceToken: TelegramConnectorService`, `syncable: false` |
+| `zalo/zalo.plugin.ts` | Connector | `type: "zalo"`, `serviceToken: ZaloConnectorService`, `syncable: false` |
+| `rfqs/rfqs.plugin.ts` | Module | module only (job handlers self-register in service `onModuleInit`) |
+| `quotes/quotes.plugin.ts` | Module | module only (job handlers self-register in service `onModuleInit`) |
+| `webhooks/webhooks.plugin.ts` | Module | module only (job handlers self-register in service `onModuleInit`) |
 
 ---
 
@@ -439,18 +437,17 @@ export class LineConnectorService implements ConnectorService {
 import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
 import { LineModule } from "./line.module";
+import { LineConnectorService } from "./line-connector.service";
 
 export const LinePlugin: PluginManifest = {
-  name: "line",
+  name: "LinePlugin",
   module: LineModule,
   connector: {
     type: "line",
-    serviceToken: "LineConnectorService",
-    module: LineModule,
+    serviceToken: LineConnectorService,
     fieldDefs: CONNECTOR_FIELD_DEFS["line"],
+    syncable: false,
   },
-  jobHandlers: [],
-  webhookEvents: [],
 };
 ```
 
@@ -494,23 +491,20 @@ If your new module processes background jobs but is **not** a connector:
    }
    ```
 
-2. In your plugin manifest, declare the job handler:
+2. Create a minimal plugin manifest (no `jobHandlers` field needed):
    ```ts
    export const MyPlugin: PluginManifest = {
-     name: "my-feature",
+     name: "MyPlugin",
      module: MyModule,
-     jobHandlers: [
-       { type: "my_job_type", description: "Process items for my feature" },
-     ],
    };
    ```
 
-3. Enqueue jobs from any service:
+3. Register `MyPlugin` in `AppModule` via `PluginRegistryModule.register([..., MyPlugin])`.
+
+4. Enqueue jobs from any service:
    ```ts
    await this.jobsService.enqueue("my_job_type", { itemId: "123" });
    ```
-
-The `type` string in `jobHandlers` must exactly match the string in `registerHandler()`. `verify:contracts` does not currently cross-check these at runtime, but the declaration serves as documentation and will be validated in future contract checks.
 
 ---
 

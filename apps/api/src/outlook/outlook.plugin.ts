@@ -1,15 +1,15 @@
 import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
-import type { ConnectorPluginManifest } from "../plugin-registry/plugin.interfaces";
+import { OutlookConnectorService } from "./outlook-connector.service";
 import { OutlookModule } from "./outlook.module";
+import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
 
-export const OutlookPlugin: ConnectorPluginManifest = {
+export const OutlookPlugin: PluginManifest = {
   name: "outlook",
   module: OutlookModule,
   connector: {
     type: "outlook",
-    serviceToken: "OutlookConnectorService",
-    module: OutlookModule,
+    serviceToken: OutlookConnectorService,
     fieldDefs: CONNECTOR_FIELD_DEFS["outlook"],
     syncable: true,
   },

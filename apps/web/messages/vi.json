@@ -12,7 +12,8 @@
     "logout": "Đăng xuất",
     "login": "Đăng nhập",
     "analytics": "Phân tích",
-    "workspace": "Không gian làm việc"
+    "workspace": "Không gian làm việc",
+    "billing": "Thanh toán"
   },
   "login": {
     "eyebrow": "auto8",

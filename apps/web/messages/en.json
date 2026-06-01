@@ -12,7 +12,8 @@
     "logout": "Log out",
     "login": "Log in",
     "analytics": "Analytics",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "billing": "Billing"
   },
   "login": {
     "eyebrow": "auto8",

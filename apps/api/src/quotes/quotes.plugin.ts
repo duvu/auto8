@@ -1,11 +1,7 @@
-import type { ModulePluginManifest } from "../plugin-registry/plugin.interfaces";
+import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
 import { QuotesModule } from "./quotes.module";
 
-export const QuotesPlugin: ModulePluginManifest = {
+export const QuotesPlugin: PluginManifest = {
   name: "quotes",
   module: QuotesModule,
-  jobHandlers: [
-    { type: "sheet_export", description: "Export approved quote to Google Sheets" },
-  ],
-  webhookEvents: ["quote.approved", "quote.sent"],
 };

@@ -39,14 +39,18 @@ function makeConfig(overrides: Record<string, string | number | undefined> = {})
   return { get: vi.fn((key: string, def?: unknown) => overrides[key] ?? def) };
 }
 
-function makePluginRegistry(plugin?: { serviceToken: string; syncable?: boolean }) {
+class MockSlackConnectorService {}
+class MockWhatsappConnectorService {}
+class MockTelegramConnectorService {}
+class MockZaloConnectorService {}
+class MockGmailConnectorService {}
+
+function makePluginRegistry(plugin?: { serviceToken: unknown; syncable?: boolean }) {
   return {
     getConnectorPlugin: vi.fn().mockReturnValue(plugin ?? null),
     getAllConnectorPlugins: vi.fn().mockReturnValue([]),
-    getAllWebhookEvents: vi.fn().mockReturnValue([]),
-    getAllManifests: vi.fn().mockReturnValue([]),
+    onModuleInit: vi.fn(),
     validate: vi.fn(),
-    register: vi.fn(),
   } as unknown as PluginRegistryService;
 }
 
@@ -158,7 +162,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "SlackConnectorService", syncable: false } as never) as never,
+        makePluginRegistry({ serviceToken: MockSlackConnectorService, syncable: false }) as never,
         makeModuleRef() as never,
       );
       await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
@@ -169,7 +173,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "WhatsappConnectorService", syncable: false } as never) as never,
+        makePluginRegistry({ serviceToken: MockWhatsappConnectorService, syncable: false }) as never,
         makeModuleRef() as never,
       );
       await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
@@ -180,7 +184,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "TelegramConnectorService", syncable: false } as never) as never,
+        makePluginRegistry({ serviceToken: MockTelegramConnectorService, syncable: false }) as never,
         makeModuleRef() as never,
       );
       await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
@@ -191,7 +195,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "ZaloConnectorService", syncable: false } as never) as never,
+        makePluginRegistry({ serviceToken: MockZaloConnectorService, syncable: false }) as never,
         makeModuleRef() as never,
       );
       await expect(svc.syncNow("conn-1")).rejects.toThrow(UnprocessableEntityException);
@@ -217,7 +221,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "GmailConnectorService" }) as never,
+        makePluginRegistry({ serviceToken: MockGmailConnectorService }) as never,
         makeModuleRef(mockConnectorSvc) as never,
       );
       const result = await svc.testCredentials("gmail", { clientId: "x" });
@@ -230,7 +234,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "WhatsappConnectorService" }) as never,
+        makePluginRegistry({ serviceToken: MockWhatsappConnectorService }) as never,
         makeModuleRef({ testConnector: mockTest }) as never,
       );
       const result = await svc.testCredentials("whatsapp", {});
@@ -242,7 +246,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "TelegramConnectorService" }) as never,
+        makePluginRegistry({ serviceToken: MockTelegramConnectorService }) as never,
         makeModuleRef({ testConnector: mockTest }) as never,
       );
       const result = await svc.testCredentials("telegram", {});
@@ -254,7 +258,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "ZaloConnectorService" }) as never,
+        makePluginRegistry({ serviceToken: MockZaloConnectorService }) as never,
         makeModuleRef({ testConnector: mockTest }) as never,
       );
       const result = await svc.testCredentials("zalo", {});
@@ -266,7 +270,7 @@ describe("ConnectorRegistryService", () => {
       const svc = new ConnectorRegistryService(
         prisma as unknown as PrismaService,
         makeConfig() as never,
-        makePluginRegistry({ serviceToken: "GmailConnectorService" }) as never,
+        makePluginRegistry({ serviceToken: MockGmailConnectorService }) as never,
         makeModuleRef({ testConnector: mockTest, sync: vi.fn() }) as never,
       );
       const result = await svc.testCredentials("gmail", {});

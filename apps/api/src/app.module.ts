@@ -38,9 +38,13 @@ import { OutlookPlugin } from "./outlook/outlook.plugin";
 import { WhatsappPlugin } from "./whatsapp/whatsapp.plugin";
 import { TelegramPlugin } from "./telegram/telegram.plugin";
 import { ZaloPlugin } from "./zalo/zalo.plugin";
-import { WebhooksPlugin } from "./webhooks/webhooks.plugin";
-import { RfqsPlugin } from "./rfqs/rfqs.plugin";
-import { QuotesPlugin } from "./quotes/quotes.plugin";
+import { RfqsModule } from "./rfqs/rfqs.module";
+import { QuotesModule } from "./quotes/quotes.module";
+import { WebhooksModule } from "./webhooks/webhooks.module";
+import { SlackModule } from "./slack/slack.module";
+import { WhatsappModule } from "./whatsapp/whatsapp.module";
+import { TelegramModule } from "./telegram/telegram.module";
+import { ZaloModule } from "./zalo/zalo.module";
 
 @Module({
   imports: [
@@ -78,9 +82,6 @@ import { QuotesPlugin } from "./quotes/quotes.plugin";
       WhatsappPlugin,
       TelegramPlugin,
       ZaloPlugin,
-      WebhooksPlugin,
-      RfqsPlugin,
-      QuotesPlugin,
     ]),
     AuditModule,
     AuthModule,
@@ -100,6 +101,13 @@ import { QuotesPlugin } from "./quotes/quotes.plugin";
     WorkspaceModule,
     AnalyticsModule,
     PortalModule,
+    RfqsModule,
+    QuotesModule,
+    WebhooksModule,
+    SlackModule,
+    WhatsappModule,
+    TelegramModule,
+    ZaloModule,
   ],
   controllers: [HealthController],
   providers: [

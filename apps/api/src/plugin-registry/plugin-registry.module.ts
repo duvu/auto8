@@ -7,11 +7,8 @@ import { PluginRegistryService } from "./plugin-registry.service";
 @Module({})
 export class PluginRegistryModule {
   static register(manifests: PluginManifest[]): DynamicModule {
-    const pluginModules = manifests.map((m) => m.module);
-
     return {
       module: PluginRegistryModule,
-      imports: pluginModules,
       providers: [
         { provide: PLUGIN_MANIFESTS_TOKEN, useValue: manifests },
         PluginRegistryService,

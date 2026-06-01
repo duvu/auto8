@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { SetupStatusView } from "@auto8/shared";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { getSetupStatus } from "../../lib/api";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
@@ -66,12 +66,7 @@ export default function SetupPage() {
     : 0;
 
   return (
-    <WorkspaceShell
-      title="Setup"
-      description="Complete these steps to get auto8 ready for production use."
-      authUser={authResult.user}
-      section="Setup"
-    >
+    <AppShell title="Setup">
       <div className="max-w-2xl mx-auto space-y-4">
         {loading ? (
           <p className="text-sm text-muted">Loading setup status...</p>
@@ -120,6 +115,6 @@ export default function SetupPage() {
           </>
         )}
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

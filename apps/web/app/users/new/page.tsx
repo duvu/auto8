@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createUser } from "../../../lib/api";
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 const ROLES = ["quote_operator", "sales_approver", "admin"];
@@ -38,12 +38,7 @@ export default function NewUserPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="Add User"
-      description="Create a new system user."
-      authUser={authResult.user}
-      section="Users"
-    >
+    <AppShell title="Add User">
       <div className="max-w-xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -115,6 +110,6 @@ export default function NewUserPage() {
           </div>
         </form>
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

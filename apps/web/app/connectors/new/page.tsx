@@ -9,7 +9,7 @@ import { CONNECTOR_TYPES } from "@auto8/shared";
 import { createConnector, getOAuth2Providers, startOAuth2Flow, testConnectorCredentials } from "../../../lib/api";
 import { ConnectorCredentialForm, emptyCredentials, validateConnectorCredentials } from "../../../components/connector-credential-form";
 import { ConnectorSetupGuide } from "../../../components/connector-setup-guide";
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 const OAUTH2_PROVIDER_LABEL: Partial<Record<ConnectorType, string>> = {
@@ -118,12 +118,7 @@ export default function NewConnectorPage() {
   const useOAuth2 = oauth2Providers[type];
 
   return (
-    <WorkspaceShell
-      title="Add Connector"
-      description="Connect a new channel — Gmail, Slack, Outlook, WhatsApp, Telegram, or Zalo — to ingest RFQs automatically."
-      authUser={authResult.user}
-      section="Connectors"
-    >
+    <AppShell title="Add Connector">
       <div className="max-w-2xl mx-auto">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
@@ -242,6 +237,6 @@ export default function NewConnectorPage() {
           </form>
         )}
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

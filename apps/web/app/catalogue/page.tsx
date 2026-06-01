@@ -8,7 +8,7 @@ import {
   reactivateProduct,
   exportCatalogue,
 } from "../../lib/api";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function CataloguePage() {
@@ -83,7 +83,7 @@ export default function CataloguePage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell title="Product Catalogue" description="Manage your product catalogue." authUser={authResult.user} section="Catalogue">
+    <AppShell title="Product Catalogue">
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Product Catalogue</h1>
@@ -244,6 +244,6 @@ export default function CataloguePage() {
         </>
       )}
     </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

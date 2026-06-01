@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import type { UserView } from "@auto8/shared";
 
 import { deactivateUser, getUsers, updateUser } from "../../lib/api";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function UsersPage() {
@@ -74,12 +74,7 @@ export default function UsersPage() {
   const authUser = authResult.user;
 
   return (
-    <WorkspaceShell
-      title="User Management"
-      description="Manage system users, roles, and access."
-      authUser={authUser}
-      section="Users"
-    >
+    <AppShell title="User Management">
       <div className="p-6">
         <div className="flex justify-end mb-4">
           {authUser?.role === "admin" && (
@@ -163,6 +158,6 @@ export default function UsersPage() {
           </div>
         )}
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

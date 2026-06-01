@@ -5,8 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { PaginatedResponse, QuoteTemplateView } from "@auto8/shared";
 
-import { WorkspaceShell } from "../../components/workspace-shell";
-import { deleteQuoteTemplate, getQuoteTemplates } from "../../lib/api";
+import { AppShell } from "../../components/app-shell";
+import { deleteQuoteTemplate, duplicateTemplate, getQuoteTemplates } from "../../lib/api";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function QuoteTemplatesPage() {
@@ -44,16 +44,22 @@ export default function QuoteTemplatesPage() {
     }
   };
 
+  const handleDuplicate = async (id: string) => {
+    try {
+      const copy = await duplicateTemplate(id);
+      void load();
+      setError(null);
+      window.location.href = `/quote-templates/${copy.id}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to duplicate template");
+    }
+  };
+
   if (!authResult) return null;
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="Quote Templates"
-      description="Reusable templates to speed up quote creation."
-      authUser={authResult.user}
-      section="Templates"
-    >
+    <AppShell title="Quote Templates">
       <div className="flex items-center gap-3 mb-4">
         <input
           type="text"
@@ -103,6 +109,13 @@ export default function QuoteTemplatesPage() {
                       </Link>
                       <button
                         type="button"
+                        onClick={() => void handleDuplicate(t.id)}
+                        className="text-muted hover:underline text-xs mr-3"
+                      >
+                        Duplicate
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void handleDelete(t.id, t.name)}
                         className="text-red-500 hover:underline text-xs"
                       >
@@ -128,6 +141,6 @@ export default function QuoteTemplatesPage() {
           </div>
         </>
       )}
-    </WorkspaceShell>
+    </AppShell>
   );
 }

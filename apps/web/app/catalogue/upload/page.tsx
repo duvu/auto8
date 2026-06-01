@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import type { CatalogueUploadResult, UploadPreviewResult, UploadPreviewRow } from "@auto8/shared";
 import { uploadCatalogue, previewCatalogueUpload } from "../../../lib/api";
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 type Stage = "select" | "preview" | "done";
@@ -68,7 +68,7 @@ export default function CatalogueUploadPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell title="Upload Catalogue" description="Import products from a spreadsheet." authUser={authResult.user} section="Catalogue">
+    <AppShell title="Upload Catalogue">
     <div className="p-6 max-w-2xl">
       <div className="flex items-center gap-3 mb-6">
         <a href="/catalogue" className="text-blue-600 hover:underline text-sm">
@@ -205,6 +205,6 @@ export default function CatalogueUploadPage() {
         </div>
       )}
     </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

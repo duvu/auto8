@@ -17,7 +17,7 @@ import {
   getAnalyticsWinRate,
 } from "../../lib/api";
 import { useRequireAuth } from "../../lib/use-require-auth";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell title="Analytics" description="Pipeline and performance metrics" authUser={authResult.user} section="Analytics">
+    <AppShell title="Analytics">
       {loading && <div className="p-6 text-gray-500">Loading...</div>}
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
 
@@ -200,6 +200,6 @@ export default function AnalyticsPage() {
           </section>
         </div>
       )}
-    </WorkspaceShell>
+    </AppShell>
   );
 }

@@ -8,7 +8,7 @@ import { ConnectorStatsTable } from "../../components/ConnectorStatsTable";
 import { IngestionRunsTable } from "../../components/IngestionRunsTable";
 import { MetricsStatsCard } from "../../components/MetricsStatsCard";
 import { fetchRfqs, getIngestionRuns, getIngestionSummary } from "../../lib/api";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function MetricsPage() {
@@ -62,15 +62,15 @@ export default function MetricsPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   if (loading) return (
-    <WorkspaceShell title="Ingestion Metrics" description="" authUser={authResult.user} section="Metrics">
+    <AppShell title="Ingestion Metrics">
       <div className="p-8 text-gray-500">Loading metrics...</div>
-    </WorkspaceShell>
+    </AppShell>
   );
 
   if (error) return (
-    <WorkspaceShell title="Ingestion Metrics" description="" authUser={authResult.user} section="Metrics">
+    <AppShell title="Ingestion Metrics">
       <div className="p-8 text-red-600">{error}</div>
-    </WorkspaceShell>
+    </AppShell>
   );
 
   const totalImported = summary?.byConnector.reduce((s: number, c) => s + c.totalImported, 0) ?? 0;
@@ -80,12 +80,7 @@ export default function MetricsPage() {
     : "0";
 
   return (
-    <WorkspaceShell
-      title="Ingestion Metrics"
-      description="Monitor connector ingestion runs and performance statistics."
-      authUser={authResult.user}
-      section="Metrics"
-    >
+    <AppShell title="Ingestion Metrics">
       <div className="p-6 space-y-8">
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -145,6 +140,6 @@ export default function MetricsPage() {
           <IngestionRunsTable runs={runs} />
         </section>
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { LlmProviderKind, LlmSettingView, LlmTestResult, SlaConfigView } from "@auto8/shared";
 import { getLlmSetting, getSlaConfig, updateLlmSetting, updateSlaConfig, testLlmConnection } from "../../lib/api";
-import { WorkspaceShell } from "../../components/workspace-shell";
+import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 const PROVIDERS: { value: LlmProviderKind; label: string }[] = [
@@ -111,12 +111,7 @@ export default function SettingsPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="LLM Provider Settings"
-      description="Configure the AI provider used for RFQ classification and extraction."
-      authUser={authResult.user}
-      section="Settings"
-    >
+    <AppShell title="LLM Provider Settings">
       <div className="max-w-xl mx-auto">
         {setting && (
           <div className="mb-4 text-sm text-gray-500">
@@ -263,6 +258,6 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

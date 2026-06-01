@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { EnrichmentPreviewResponse, CatalogueEnrichmentSuggestionView } from "@auto8/shared";
 import { getEnrichmentPreview, triggerCatalogueEnrichment, confirmEnrichment } from "../../../../lib/api";
-import { WorkspaceShell } from "../../../../components/workspace-shell";
+import { AppShell } from "../../../../components/app-shell";
 import { useRequireAuth } from "../../../../lib/use-require-auth";
 
 export default function CatalogueEnrichPage() {
@@ -87,7 +87,7 @@ export default function CatalogueEnrichPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell title="Catalogue Enrichment" description="AI-powered product data enrichment suggestions" authUser={authResult.user} section="Catalogue">
+    <AppShell title="Catalogue Enrichment">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -207,6 +207,6 @@ export default function CatalogueEnrichPage() {
           </>
         ) : null}
       </div>
-    </WorkspaceShell>
+    </AppShell>
   );
 }

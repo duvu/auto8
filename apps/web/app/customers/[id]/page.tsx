@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 import type { CustomerView } from "@auto8/shared";
 
-import { WorkspaceShell } from "../../../components/workspace-shell";
+import { AppShell } from "../../../components/app-shell";
 import { deleteCustomer, getCustomer, getCustomers, mergeCustomers, updateCustomer } from "../../../lib/api";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
@@ -101,12 +101,7 @@ export default function CustomerDetailPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <WorkspaceShell
-      title="Customer Details"
-      description="View and edit customer information."
-      authUser={authResult.user}
-      section="Customers"
-    >
+    <AppShell title="Customer Details">
       <div className="mb-4">
         <Link href="/customers" className="text-sm text-muted hover:underline">
           ← Back to Customers
@@ -209,6 +204,6 @@ export default function CustomerDetailPage() {
           )}
         </div>
       )}
-    </WorkspaceShell>
+    </AppShell>
   );
 }

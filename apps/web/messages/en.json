@@ -1,5 +1,7 @@
 {
   "nav": {
+    "rfqs": "RFQs",
+    "search": "Search...",
     "catalogue": "Catalogue",
     "customers": "Customers",
     "jobs": "Jobs",

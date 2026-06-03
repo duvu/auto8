@@ -48,7 +48,7 @@ export default function AuditPage() {
     <AppShell title="Audit Logs">
       <div className="p-6 max-w-5xl">
         <form onSubmit={handleSearch} className="bg-white border border-gray-200 rounded p-4 mb-6 space-y-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Resource Type</label>
               <select

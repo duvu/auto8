@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { logout } from '../lib/auth';
 
@@ -14,42 +15,56 @@ interface AppShellProps {
 
 const NAV_SECTIONS = [
   {
-    label: 'Operations',
+    labelKey: 'Operations',
     links: [
-      { href: '/rfqs', label: 'RFQs', icon: '📋' },
-      { href: '/customers', label: 'Customers', icon: '👥' },
-      { href: '/catalogue', label: 'Catalogue', icon: '📦' },
-      { href: '/quote-templates', label: 'Templates', icon: '📄' },
+      { href: '/rfqs', tKey: 'rfqs', icon: '📋' },
+      { href: '/customers', tKey: 'customers', icon: '👥' },
+      { href: '/catalogue', tKey: 'catalogue', icon: '📦' },
+      { href: '/quote-templates', tKey: 'templates', icon: '📄' },
     ],
   },
   {
-    label: 'Settings',
+    labelKey: 'Settings',
     links: [
-      { href: '/connectors', label: 'Connectors', icon: '🔌' },
-      { href: '/webhooks', label: 'Webhooks', icon: '🔔' },
-      { href: '/settings/workspace', label: 'Workspace', icon: '⚙️' },
+      { href: '/connectors', tKey: 'connectors', icon: '🔌' },
+      { href: '/webhooks', tKey: 'webhooks', icon: '🔔' },
+      { href: '/settings/workspace', tKey: 'workspace', icon: '⚙️' },
     ],
     adminOnly: false,
   },
 ];
 
 const ADMIN_NAV = [
-  { href: '/users', label: 'Users', icon: '👤' },
-  { href: '/analytics', label: 'Analytics', icon: '📊' },
-  { href: '/billing', label: 'Billing', icon: '💳' },
-  { href: '/setup', label: 'Setup', icon: '🚀' },
-  { href: '/audit', label: 'Audit Log', icon: '🔍' },
-  { href: '/jobs', label: 'Jobs', icon: '⚙️' },
+  { href: '/users', tKey: 'users', icon: '👤' },
+  { href: '/analytics', tKey: 'analytics', icon: '📊' },
+  { href: '/billing', tKey: 'billing', icon: '💳' },
+  { href: '/setup', tKey: 'setup', icon: '🚀' },
+  { href: '/audit', tKey: 'auditLog', icon: '🔍' },
+  { href: '/jobs', tKey: 'jobs', icon: '⚙️' },
 ];
 
 export function AppShell({ children, title, breadcrumbs, actions }: AppShellProps) {
   const auth = useRequireAuth();
   const pathname = usePathname();
+  const router = useRouter();
+  const t = useTranslations('nav');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [currentLocale, setCurrentLocale] = useState('en');
   const searchRef = useRef<HTMLInputElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)locale=([^;]+)/);
+    if (match) setCurrentLocale(match[1]);
+  }, []);
+
+  function switchLocale(locale: string) {
+    document.cookie = `locale=${locale}; path=/; max-age=31536000`;
+    setCurrentLocale(locale);
+    router.refresh();
+  }
 
   // '/' shortcut to focus search
   useEffect(() => {
@@ -96,8 +111,8 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
       {/* Nav sections */}
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         {NAV_SECTIONS.map(section => (
-          <div key={section.label} className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#b8c8d8] px-2 mb-1">{section.label}</p>
+          <div key={section.labelKey} className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#b8c8d8] px-2 mb-1">{section.labelKey}</p>
             {section.links.map(link => {
               const active = pathname === link.href || pathname.startsWith(link.href + '/');
               return (
@@ -106,7 +121,7 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
                   className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-colors ${
                     active ? 'bg-[#c9612c] text-white' : 'text-white hover:bg-white/15'
                   }`}>
-                  <span>{link.icon}</span>{link.label}
+                  <span>{link.icon}</span>{t(link.tKey as Parameters<typeof t>[0])}
                 </Link>
               );
             })}
@@ -123,7 +138,7 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
                   className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-colors ${
                     active ? 'bg-[#c9612c] text-white' : 'text-white hover:bg-white/15'
                   }`}>
-                  <span>{link.icon}</span>{link.label}
+                  <span>{link.icon}</span>{t(link.tKey as Parameters<typeof t>[0])}
                 </Link>
               );
             })}
@@ -135,37 +150,45 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
       <div className="px-4 py-4 border-t border-white/10">
         <p className="text-sm font-medium text-white">{user.name}</p>
         <p className="text-xs text-[#b8c8d8] capitalize">{user.role.replace('_', ' ')}</p>
+        <div className="mt-3 flex items-center gap-1">
+          {(['en', 'vi', 'zh'] as const).map(locale => (
+            <button key={locale} onClick={() => switchLocale(locale)}
+              className={`text-xs px-2 py-0.5 rounded font-medium transition-colors ${
+                currentLocale === locale ? 'bg-[#c9612c] text-white' : 'text-[#b8c8d8] hover:text-white'
+              }`}>
+              {locale.toUpperCase()}
+            </button>
+          ))}
+        </div>
         <button onClick={() => void logout().then(() => { window.location.href = '/login'; })}
           className="mt-2 text-xs text-[#b8c8d8] hover:text-white transition-colors">
-          Sign out
+          {t('logout')}
         </button>
       </div>
     </>
   );
 
   return (
-    <div className="h-screen overflow-hidden grid" style={{ gridTemplateColumns: '220px 1fr', gridTemplateRows: '1fr' }}>
+    <div className="h-screen overflow-hidden flex md:grid" style={{ gridTemplateColumns: '220px 1fr', gridTemplateRows: '1fr' }}>
       {/* Sidebar (desktop) */}
-      <aside className="hidden lg:flex flex-col h-full overflow-hidden" style={{ background: 'var(--sidebar-bg, #1e1e2e)' }}>
+      <aside className="hidden md:flex flex-col h-full overflow-hidden" style={{ background: 'var(--sidebar-bg, #1e1e2e)' }}>
         <SidebarContent />
       </aside>
 
       {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="relative z-10 flex flex-col w-64 h-full" style={{ background: 'var(--sidebar-bg, #1e1e2e)' }}>
-            <SidebarContent />
-          </div>
+      <div className={`md:hidden fixed inset-0 z-50 flex transition-opacity duration-200 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+        <div className={`relative z-10 flex flex-col w-64 h-full transform transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{ background: 'var(--sidebar-bg, #1e1e2e)' }}>
+          <SidebarContent />
         </div>
-      )}
+      </div>
 
       {/* Right column: toolbar + content */}
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {/* Top toolbar */}
-        <header className="flex-shrink-0 h-14 flex items-center gap-4 px-4 lg:px-6 bg-white border-b border-[#e5e7eb] z-20">
+        <header className="flex-shrink-0 h-14 flex items-center gap-4 px-4 sm:px-6 bg-white border-b border-[#e5e7eb] z-20">
           {/* Hamburger (mobile) */}
-          <button className="lg:hidden p-1.5 rounded-md text-[#6b7280] hover:bg-gray-100"
+          <button className="md:hidden p-1.5 rounded-md text-[#6b7280] hover:bg-gray-100 flex-shrink-0"
             onClick={() => setSidebarOpen(true)} aria-label="Open menu">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -175,7 +198,7 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
           {/* Breadcrumb / title */}
           <div className="flex items-center gap-2 min-w-0">
             {breadcrumbs?.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-2">
+              <span key={i} className="flex items-center gap-2 flex-shrink-0">
                 {crumb.href ? (
                   <Link href={crumb.href} className="text-sm text-[#6b7280] hover:text-[#111827]">{crumb.label}</Link>
                 ) : (
@@ -202,10 +225,10 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
           </div>
 
           {/* Actions slot */}
-          {actions && <div className="flex items-center gap-2 ml-auto">{actions}</div>}
+          {actions && <div className="flex items-center gap-2 ml-auto flex-shrink-0">{actions}</div>}
 
           {/* User menu */}
-          <div className="relative ml-auto" ref={userMenuRef}>
+          <div className="relative ml-auto flex-shrink-0" ref={userMenuRef}>
             <button onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="w-8 h-8 rounded-full bg-[#c9612c] text-white text-xs font-bold flex items-center justify-center hover:bg-[#b85526] transition-colors">
               {initials}
@@ -217,16 +240,16 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
                   <p className="text-xs text-[#6b7280] capitalize">{user.role.replace('_', ' ')}</p>
                 </div>
                 <Link href="/settings/workspace" onClick={() => setUserMenuOpen(false)}
-                  className="block px-3 py-2 text-sm text-[#111827] hover:bg-gray-50">Settings</Link>
+                  className="block px-3 py-2 text-sm text-[#111827] hover:bg-gray-50">{t('settings')}</Link>
                 <button onClick={() => void logout().then(() => { window.location.href = '/login'; })}
-                  className="w-full text-left px-3 py-2 text-sm text-[#dc2626] hover:bg-gray-50">Sign out</button>
+                  className="w-full text-left px-3 py-2 text-sm text-[#dc2626] hover:bg-gray-50">{t('logout')}</button>
               </div>
             )}
           </div>
         </header>
 
         {/* Main scrollable content */}
-        <main className="flex-1 overflow-y-auto bg-[#f5f5f5] p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto bg-[#f5f5f5] p-4 sm:p-6">
           {children}
         </main>
       </div>

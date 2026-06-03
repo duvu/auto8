@@ -91,7 +91,7 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
         <span className="text-xl font-bold text-blue-600">auto8</span>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="w-full max-w-2xl mx-auto px-4 py-8">
         {loading && <p className="text-gray-500">Loading quote...</p>}
 
         {error && (
@@ -112,8 +112,8 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
               )}
             </div>
 
-            <div className="bg-white border rounded overflow-hidden">
-              <table className="w-full border-collapse text-sm">
+            <div className="bg-white border rounded overflow-x-auto">
+              <table className="w-full border-collapse text-sm min-w-[500px]">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="text-left font-medium text-gray-600 py-3 px-4">Description</th>
@@ -187,23 +187,21 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
                 )}
 
                 {!showRejectForm && !showRevisionForm && (
-                  <div className="flex gap-3 flex-wrap">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       onClick={() => void handleAccept()}
                       disabled={actionLoading}
-                      className="bg-blue-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                      className="bg-blue-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 w-full sm:w-auto"
                     >
                       {actionLoading ? "Processing..." : "Accept Quote"}
                     </button>
                     <button
                       onClick={() => { setShowRejectForm(true); setShowRevisionForm(false); setNote(""); }}
-                      className="border rounded px-5 py-2 text-sm hover:bg-gray-50"
-                    >
-                      Decline
-                    </button>
+                      className="border rounded px-5 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
+                    >Decline Quote</button>
                     <button
                       onClick={() => { setShowRevisionForm(true); setShowRejectForm(false); setNote(""); }}
-                      className="border rounded px-5 py-2 text-sm hover:bg-gray-50"
+                      className="border rounded px-5 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
                     >
                       Request Revision
                     </button>
@@ -220,20 +218,18 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
                       className="w-full border rounded px-3 py-2 text-sm"
                       placeholder="Let us know why you&apos;re declining..."
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button
                         onClick={() => void handleReject()}
                         disabled={actionLoading}
-                        className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-900 disabled:opacity-50"
+                        className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-900 disabled:opacity-50 w-full sm:w-auto"
                       >
                         {actionLoading ? "Submitting..." : "Confirm Decline"}
                       </button>
                       <button
                         onClick={() => { setShowRejectForm(false); setNote(""); setActionError(null); }}
-                        className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
-                      >
-                        Cancel
-                      </button>
+                        className="border rounded px-4 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
+                      >Cancel</button>
                     </div>
                   </div>
                 )}
@@ -248,20 +244,18 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
                       className="w-full border rounded px-3 py-2 text-sm"
                       placeholder="Describe the changes you need..."
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button
                         onClick={() => void handleRevision()}
                         disabled={actionLoading}
-                        className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                        className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 w-full sm:w-auto"
                       >
                         {actionLoading ? "Submitting..." : "Submit Request"}
                       </button>
                       <button
                         onClick={() => { setShowRevisionForm(false); setNote(""); setActionError(null); }}
-                        className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
-                      >
-                        Cancel
-                      </button>
+                        className="border rounded px-4 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
+                      >Cancel</button>
                     </div>
                   </div>
                 )}

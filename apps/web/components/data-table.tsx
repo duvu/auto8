@@ -55,7 +55,7 @@ export function DataTable<T extends { id: string }>({
         </div>
       )}
       {/* Table wrapper with sticky header */}
-      <div className="overflow-auto rounded-lg border border-[#e5e7eb]" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+      <div className="overflow-x-auto overflow-y-auto rounded-lg border border-[#e5e7eb]" style={{ maxHeight: 'calc(100vh - 280px)' }}>
         <table className="min-w-full divide-y divide-[#e5e7eb]">
           <thead className="bg-white sticky top-0 z-10 shadow-sm">
             <tr>

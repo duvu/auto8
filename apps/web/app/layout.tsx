@@ -14,8 +14,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const messages = await getMessages();
 
   return (
-    <html lang="en" className="h-full">
-      <body className="h-full overflow-hidden">
+    <html lang="en" className="h-full overflow-x-hidden">
+      <body className="h-full overflow-x-hidden">
         <NextIntlClientProvider messages={messages}>
           {children}
         </NextIntlClientProvider>

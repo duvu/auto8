@@ -30,7 +30,7 @@ export function DetailDrawer({ isOpen, onClose, title, children, footer }: Detai
       />
       {/* Drawer panel */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-200 w-full xl:w-[480px] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-200 w-full md:w-[480px] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5e7eb] flex-shrink-0">

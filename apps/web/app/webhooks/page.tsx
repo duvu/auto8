@@ -127,7 +127,7 @@ export default function WebhooksPage() {
         {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
         {success && <div className="bg-green-50 border border-green-200 text-green-700 rounded p-3 mb-4 text-sm">{success}</div>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-1 md:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <h2 className="text-lg font-medium text-ink mb-4">Existing Endpoints</h2>
             {endpoints.length === 0 ? (

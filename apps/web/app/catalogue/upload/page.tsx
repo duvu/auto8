@@ -128,7 +128,7 @@ export default function CatalogueUploadPage() {
           </div>
 
           <div className="border rounded overflow-hidden mb-4">
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto"><table className="w-full text-xs">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="px-3 py-2 text-left">Row</th>
@@ -153,7 +153,7 @@ export default function CatalogueUploadPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div className="flex gap-3">

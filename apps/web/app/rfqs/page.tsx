@@ -152,7 +152,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="RFQ Intake Dashboard">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-1">
           <span className="text-sm text-muted">Active RFQs</span>
           <strong className="text-2xl font-bold text-ink">{stats.total}</strong>

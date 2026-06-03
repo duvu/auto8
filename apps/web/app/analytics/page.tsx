@@ -88,7 +88,7 @@ export default function AnalyticsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3">Win Rate</h2>
             {winRate && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard label="Accepted" value={String(winRate.accepted)} />
                 <StatCard label="Rejected" value={String(winRate.rejected)} />
                 <StatCard label="Win Rate" value={`${(winRate.winRate * 100).toFixed(1)}%`} />
@@ -99,7 +99,7 @@ export default function AnalyticsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3">Response Time</h2>
             {responseTime && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard label="Average" value={formatHours(responseTime.avgHours)} />
                 <StatCard label="Median (p50)" value={formatHours(responseTime.p50Hours)} />
                 <StatCard label="p90" value={formatHours(responseTime.p90Hours)} />

@@ -83,7 +83,7 @@ export default function MetricsPage() {
     <AppShell title="Ingestion Metrics">
       <div className="p-6 space-y-8">
         {/* Summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricsStatsCard label="Total Imported (all time)" value={totalImported.toLocaleString()} />
           <MetricsStatsCard label="Total Runs" value={totalRuns.toLocaleString()} />
           <MetricsStatsCard label="Avg Error Rate" value={`${avgErrorRate}%`} />

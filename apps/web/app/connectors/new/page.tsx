@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import type { ConnectorType, CreateConnectorInput } from "@auto8/shared";
@@ -19,6 +20,7 @@ const OAUTH2_PROVIDER_LABEL: Partial<Record<ConnectorType, string>> = {
 };
 
 export default function NewConnectorPage() {
+  const t = useTranslations("connectors");
   const router = useRouter();
   const [type, setType] = useState<ConnectorType>("gmail");
   const [label, setLabel] = useState("");
@@ -126,7 +128,7 @@ export default function NewConnectorPage() {
 
         {/* Type selector */}
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Connector type</label>
+          <label className="block text-sm font-medium mb-1">{t("type")}</label>
           <select
             value={type}
             onChange={(e) => handleTypeChange(e.target.value as ConnectorType)}
@@ -165,16 +167,14 @@ export default function NewConnectorPage() {
                 className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
                 type="button"
                 onClick={() => router.push("/connectors")}
-              >
-                Cancel
-              </button>
+              >{t("cancel")}</button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Label */}
             <div>
-              <label className="block text-sm font-medium mb-1">Label</label>
+              <label className="block text-sm font-medium mb-1">{t("label")}</label>
               <input
                 type="text"
                 value={label}
@@ -188,7 +188,7 @@ export default function NewConnectorPage() {
 
             {/* Structured credential fields */}
             <div>
-              <label className="block text-sm font-medium mb-2">Credentials</label>
+              <label className="block text-sm font-medium mb-2">{t("credentials")}</label>
               <ConnectorCredentialForm
                 type={type}
                 credentials={credentials}
@@ -212,27 +212,25 @@ export default function NewConnectorPage() {
 
             <div className="flex gap-3 flex-wrap">
               <button
-                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 w-full sm:w-auto"
                 type="submit"
                 disabled={loading}
               >
                 {loading ? "Creating..." : "Create connector"}
               </button>
               <button
-                className="border rounded px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                className="border rounded px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50 w-full sm:w-auto"
                 type="button"
                 disabled={testing}
                 onClick={() => void handleTestConnection()}
               >
-                {testing ? "Testing..." : "Test connection"}
+                {testing ? t("testingConnection") : t("testConnection")}
               </button>
               <button
-                className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
+                className="border rounded px-4 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
                 type="button"
                 onClick={() => router.push("/connectors")}
-              >
-                Cancel
-              </button>
+              >{t("cancel")}</button>
             </div>
           </form>
         )}

@@ -20,8 +20,7 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const QUOTE_STATUSES = ["draft", "pending_approval", "approved", "revised", "customer_accepted", "customer_rejected", "revision_requested"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
-export const RFQ_WORKFLOW_STATES = ["new", "draft", "pending_approval", "approved"] as const;
-export type RfqWorkflowState = (typeof RFQ_WORKFLOW_STATES)[number];
+export type RfqWorkflowState = "new" | "draft" | "pending_approval" | "approved";
 
 export const RFQ_SOURCE_TYPES = ["email", "slack", "outlook", "whatsapp", "telegram", "zalo"] as const;
 export type RfqSourceType = (typeof RFQ_SOURCE_TYPES)[number];
@@ -275,6 +274,11 @@ export interface IngestionMetricsSummary {
   byConnector: IngestionRunStats[];
   dailyImports: IngestionDayCount[];
   connectors?: ConnectorView[];
+}
+
+export interface MetricsSummaryView {
+  overdueSlaCount: number;
+  dueTodaySlaCount: number;
 }
 
 export interface RfqExtractedItemView {

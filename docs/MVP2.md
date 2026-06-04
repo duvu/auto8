@@ -1,6 +1,8 @@
-# auto8 — MVP2 Feature Roadmap
+# auto8 — MVP2 Feature Roadmap and Status
 
 > **MVP1 recap**: RFQ intake (Gmail / Outlook / Slack) → LLM classification & extraction → quote drafting → approval workflow → email send. Product catalogue, fuzzy item matching, Google Sheets export, audit log, i18n (EN/VI), responsive UI.
+>
+> **Current status (2026-06-04)**: MVP2 implementation tasks are complete in OpenSpec. Final aggregate verification and archival should run before treating the branch as release-ready.
 
 ---
 
@@ -16,11 +18,35 @@
 
 ---
 
+## Implementation Status Snapshot
+
+| Area | OpenSpec change | Progress | Status |
+|---|---:|---:|---|
+| Sprint 1 — Efficiency core | `mvp2-sprint1-efficiency` | 56 / 56 | ✅ Complete |
+| Sprint 2 — Enterprise ops | `mvp2-sprint2-enterprise-ops` | 61 / 61 | ✅ Complete |
+| Sprint 3 — Intelligence | `mvp2-sprint3-intelligence` | 42 / 42 | ✅ Complete |
+| Sprint 4 — Channels & Integration | `sprint-4-channels-integration` | 62 / 62 | ✅ Complete |
+| Platform maturity | `mvp3-platform-maturity` | 60 / 60 | ✅ Complete |
+| OAuth2 connector flow | `connector-oauth2-flow` | 22 / 22 | ✅ Complete |
+| Responsive fullscreen UI | `responsive-fullscreen-ui` | 16 / 16 | ✅ Complete |
+| Persistent toolbar navigation | `persistent-toolbar-navigation` | 18 / 18 | ✅ Complete |
+| Simplified connector setup | `simplify-connector-setup` | 19 / 19 | ✅ Complete |
+| Plugin architecture hardening | `plugin-architecture-hardening` | 28 / 28 | ✅ Complete |
+| Pluggable logging transports | `pluggable-logging-transports` | 13 / 13 | ✅ Complete |
+| Multi-language i18n | `i18n-multi-language` | 36 / 36 | ✅ Complete |
+| Demo data seed | `demo-data-seed` | 30 / 30 | ✅ Complete |
+| Codebase consistency audit | `codebase-consistency-audit` | 24 / 24 | ✅ Complete |
+
+**Verification note**: Individual implementation agents reported passing `npm run typecheck` and `npm run build` for their changes. Because many changes landed concurrently, run a final aggregate `npm run typecheck`, `npm run build`, `npm run verify:contracts`, and targeted tests before release/merge archival.
+
+---
+
 ## Features
 
 ### 1. Customer Address Book
 **Theme**: Operator Efficiency  
 **Priority**: 🔴 High
+**Status**: ✅ Complete via `mvp2-sprint1-efficiency`
 
 Customers are currently extracted ad-hoc from each RFQ with no persistence. A customer address book lets operators:
 
@@ -36,6 +62,7 @@ Customers are currently extracted ad-hoc from each RFQ with no persistence. A cu
 ### 2. Quote Templates
 **Theme**: Operator Efficiency  
 **Priority**: 🔴 High
+**Status**: ✅ Complete via `mvp2-sprint1-efficiency`
 
 Every quote is currently drafted from scratch. Templates allow:
 
@@ -50,6 +77,7 @@ Every quote is currently drafted from scratch. Templates allow:
 ### 3. Multi-currency & Pricing Rules
 **Theme**: Operator Efficiency  
 **Priority**: 🔴 High
+**Status**: ✅ Complete via `mvp2-sprint1-efficiency`
 
 Quote line items currently have no currency or margin logic. Add:
 
@@ -65,6 +93,7 @@ Quote line items currently have no currency or margin logic. Add:
 ### 4. Quote Revision & Version History
 **Theme**: Enterprise Ops  
 **Priority**: 🔴 High
+**Status**: ✅ Complete via `mvp2-sprint2-enterprise-ops`
 
 Quotes often require revision after customer feedback. Add:
 
@@ -80,6 +109,7 @@ Quotes often require revision after customer feedback. Add:
 ### 5. Connector: WhatsApp & Telegram
 **Theme**: Channel Expansion  
 **Priority**: 🟠 Medium-High
+**Status**: ✅ Complete via `sprint-4-channels-integration`
 
 WhatsApp Business API and Telegram are the dominant B2B messaging channels in Southeast Asia. Add intake connectors that feed the same `RfqIntake` → classification pipeline:
 
@@ -93,6 +123,7 @@ WhatsApp Business API and Telegram are the dominant B2B messaging channels in So
 ### 6. Bulk RFQ Assignment
 **Theme**: Enterprise Ops  
 **Priority**: 🟠 Medium-High
+**Status**: ✅ Complete via `mvp2-sprint2-enterprise-ops`
 
 Supervisors need to distribute incoming RFQs across a team. Add:
 
@@ -108,6 +139,7 @@ Supervisors need to distribute incoming RFQs across a team. Add:
 ### 7. Semantic Item Matching (Embeddings)
 **Theme**: Intelligence  
 **Priority**: 🟠 Medium-High
+**Status**: ✅ Complete via `mvp2-sprint3-intelligence`
 
 Current keyword fuzzy matching misses "SS hex bolt M8×1.25" → "stainless steel bolt M8". Upgrade to:
 
@@ -123,6 +155,7 @@ Current keyword fuzzy matching misses "SS hex bolt M8×1.25" → "stainless stee
 ### 8. Catalogue Enrichment via LLM
 **Theme**: Intelligence  
 **Priority**: 🟡 Medium
+**Status**: ✅ Complete via `mvp2-sprint3-intelligence`
 
 Raw catalogue uploads (XLSX/CSV) often have inconsistent product names, missing descriptions, and no category tags. Add a post-upload enrichment step:
 
@@ -136,6 +169,7 @@ Raw catalogue uploads (XLSX/CSV) often have inconsistent product names, missing 
 ### 9. Email Threading / Reply Detection
 **Theme**: Operator Efficiency  
 **Priority**: 🟡 Medium
+**Status**: ✅ Complete via `sprint-4-channels-integration`
 
 When a customer replies to a sent quote email, the reply currently lands as a new unrelated RFQ intake. Add:
 
@@ -149,6 +183,7 @@ When a customer replies to a sent quote email, the reply currently lands as a ne
 ### 10. SLA / Deadline Tracking
 **Theme**: Enterprise Ops  
 **Priority**: 🟡 Medium
+**Status**: ✅ Complete via `mvp2-sprint2-enterprise-ops`
 
 Sales managers need visibility into response time commitments. Add:
 
@@ -164,6 +199,7 @@ Sales managers need visibility into response time commitments. Add:
 ### 11. Outbound Webhooks
 **Theme**: Integration  
 **Priority**: 🟡 Medium
+**Status**: ✅ Complete via `sprint-4-channels-integration`
 
 Allow auto8 to push events to external systems (ERP, custom dashboards, Zapier) without polling. Add:
 
@@ -179,21 +215,21 @@ Allow auto8 to push events to external systems (ERP, custom dashboards, Zapier) 
 ## Suggested Sequencing
 
 ```
-Sprint 1 (Efficiency core)
+Sprint 1 (Efficiency core) ✅ Complete
   #1 Customer Address Book
   #2 Quote Templates
   #3 Multi-currency & Pricing Rules
 
-Sprint 2 (Enterprise ops)
+Sprint 2 (Enterprise ops) ✅ Complete
   #4 Quote Revisions
   #6 Bulk RFQ Assignment
   #10 SLA Tracking
 
-Sprint 3 (Intelligence)
+Sprint 3 (Intelligence) ✅ Complete
   #7 Semantic Matching
   #8 Catalogue Enrichment
 
-Sprint 4 (Channels & Integration)
+Sprint 4 (Channels & Integration) ✅ Complete
   #5 WhatsApp / Telegram
   #9 Email Threading
   #11 Outbound Webhooks
@@ -201,4 +237,30 @@ Sprint 4 (Channels & Integration)
 
 ---
 
-*Generated: 2026-05-29*
+## Next Roadmap Phase
+
+With MVP2 complete, the next phase should focus on release hardening and operational readiness rather than adding more feature surface area immediately.
+
+### Phase A — Release hardening
+
+- Run final aggregate verification across the whole worktree: typecheck, build, contract verification, and targeted Jest suites.
+- Remove temporary implementation scripts and keep only source, tests, docs, migrations, and intended assets.
+- Archive completed OpenSpec changes after verification so active work only shows true future scope.
+- Reconcile any pre-existing failing tests and DB setup gaps before tagging a release.
+
+### Phase B — Production readiness
+
+- Expand smoke tests for auth, connector OAuth2, RFQ intake, quote revisions, portal actions, and webhook delivery.
+- Add deployment runbook coverage for new env vars: OAuth2 providers, logging transports, pgvector, embedding threshold, webhook signing, and i18n.
+- Validate seed data and demo guide against the deployed Z440 environment.
+
+### Phase C — Post-MVP2 product work
+
+- Improve analytics from dashboards into actionable alerts and scheduled reports.
+- Add configurable notification rules for SLA breach warnings.
+- Harden AI workflows with evaluation fixtures for classification, extraction, matching, and enrichment.
+- Add connector observability dashboards: sync health, delivery failures, retry queues, and per-channel throughput.
+
+---
+
+*Generated: 2026-05-29. Updated: 2026-06-04.*

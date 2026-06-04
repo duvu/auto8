@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-import type { IngestionMetricsSummary, IngestionRunView } from "@auto8/shared";
+import type { IngestionMetricsSummary, IngestionRunView, MetricsSummaryView } from "@auto8/shared";
 
 import { ConnectorStatsTable } from "../../components/ConnectorStatsTable";
 import { IngestionRunsTable } from "../../components/IngestionRunsTable";
 import { MetricsStatsCard } from "../../components/MetricsStatsCard";
-import { fetchRfqs, getIngestionRuns, getIngestionSummary } from "../../lib/api";
+import { fetchRfqs, getAnalyticsSlaSummary, getIngestionRuns, getIngestionSummary } from "../../lib/api";
 import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
@@ -15,6 +15,7 @@ export default function MetricsPage() {
   const [summary, setSummary] = useState<IngestionMetricsSummary | null>(null);
   const [runs, setRuns] = useState<IngestionRunView[]>([]);
   const [overdueCount, setOverdueCount] = useState(0);
+  const [slaSummary, setSlaSummary] = useState<MetricsSummaryView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,14 +29,16 @@ export default function MetricsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [summaryData, runsData, rfqsData] = await Promise.all([
+        const [summaryData, runsData, rfqsData, slaSummaryData] = await Promise.all([
           getIngestionSummary(),
           getIngestionRuns(),
           fetchRfqs(true),
+          getAnalyticsSlaSummary(),
         ]);
         setSummary(summaryData);
         setRuns(runsData.data);
         setOverdueCount(rfqsData.data.filter((r) => r.slaBreached).length);
+        setSlaSummary(slaSummaryData);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load metrics");
       } finally {
@@ -88,6 +91,7 @@ export default function MetricsPage() {
           <MetricsStatsCard label="Total Runs" value={totalRuns.toLocaleString()} />
           <MetricsStatsCard label="Avg Error Rate" value={`${avgErrorRate}%`} />
           <MetricsStatsCard label="Overdue RFQs" value={overdueCount.toString()} />
+          <MetricsStatsCard label="Due Today" value={(slaSummary?.dueTodaySlaCount ?? 0).toString()} />
         </div>
 
         {/* Per-connector breakdown */}

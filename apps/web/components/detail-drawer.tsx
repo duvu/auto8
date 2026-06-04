@@ -28,9 +28,12 @@ export function DetailDrawer({ isOpen, onClose, title, children, footer }: Detai
         className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
-      {/* Drawer panel */}
+      {/* Drawer panel — bottom sheet on mobile, side drawer on md+ */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-200 w-full md:w-[480px] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed z-50 flex flex-col bg-white shadow-2xl transition-transform duration-200
+          inset-x-0 bottom-0 top-auto rounded-t-xl rounded-b-none max-h-[90vh]
+          md:inset-y-0 md:right-0 md:left-auto md:top-0 md:bottom-0 md:w-[480px] md:rounded-none md:max-h-none
+          ${isOpen ? 'translate-y-0 md:translate-x-0 md:translate-y-0' : 'translate-y-full md:translate-y-0 md:translate-x-full'}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5e7eb] flex-shrink-0">

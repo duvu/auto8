@@ -2,7 +2,6 @@ import { Body, ConflictException, Controller, Get, NotFoundException, Param, Pat
 import { UserRole } from "@prisma/client";
 import type { User } from "@prisma/client";
 import type { AssignRfqInput, RfqPipelineStatus } from "@auto8/shared";
-
 import { CurrentUser } from "../rbac/current-user.decorator";
 import { Public } from "../rbac/public.decorator";
 import { Roles } from "../rbac/roles.decorator";
@@ -41,10 +40,21 @@ export class RfqsController {
     @Query("assignedToId") assignedToId?: string,
     @Query("includeReplies") includeRepliesParam?: string,
     @Query() pagination?: PaginationQueryDto,
+    @CurrentUser() user?: User,
   ) {
     const isRfq = isRfqParam === undefined ? undefined : isRfqParam === "true";
     const includeReplies = includeRepliesParam === "true";
-    return this.rfqIntakeService.listRfqs(isRfq, pagination, pipelineStatus, assignedToId, includeReplies);
+
+    let resolvedAssignedToId = assignedToId;
+    if (user?.role === UserRole.quote_operator) {
+      if (!resolvedAssignedToId) {
+        resolvedAssignedToId = user.id;
+      } else if (resolvedAssignedToId === "all") {
+        resolvedAssignedToId = undefined;
+      }
+    }
+
+    return this.rfqIntakeService.listRfqs(isRfq, pagination, pipelineStatus, resolvedAssignedToId, includeReplies);
   }
 
   @Get(":rfqId/replies")
@@ -180,6 +190,25 @@ export class RfqsController {
     @Body() body: AssignRfqInput,
   ) {
     return this.quoteWorkflowService.assignRfq(rfqId, body);
+  }
+
+  @Patch(":rfqId")
+  @Roles(UserRole.admin, UserRole.sales_approver)
+  async updateRfq(
+    @Param("rfqId") rfqId: string,
+    @Body() body: { expectedResponseBy?: string | null },
+  ) {
+    const rfq = await this.prisma.rfq.findUnique({ where: { id: rfqId }, select: { id: true } });
+    if (!rfq) throw new NotFoundException("RFQ not found.");
+    const updated = await (this.prisma as unknown as { rfq: { update: (args: unknown) => Promise<{ expectedResponseBy: Date | null }> } }).rfq.update({
+      where: { id: rfqId },
+      data: {
+        expectedResponseBy: body.expectedResponseBy !== undefined
+          ? (body.expectedResponseBy === null ? null : new Date(body.expectedResponseBy))
+          : undefined,
+      },
+    });
+    return { ok: true, expectedResponseBy: updated.expectedResponseBy?.toISOString() ?? null };
   }
 
   @Post(":rfqId/extracted-customer/save")

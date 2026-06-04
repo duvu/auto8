@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import type { UserView } from "@auto8/shared";
@@ -10,6 +11,7 @@ import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function UsersPage() {
+  const t = useTranslations("users");
   const [users, setUsers] = useState<UserView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,12 +100,12 @@ export default function UsersPage() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-gray-50 text-left">
-                  <th className="border px-3 py-2">Name</th>
-                  <th className="border px-3 py-2">Email</th>
-                  <th className="border px-3 py-2">Role</th>
-                  <th className="border px-3 py-2">Status</th>
+                  <th className="border px-3 py-2">{t("name")}</th>
+                  <th className="border px-3 py-2">{t("email")}</th>
+                  <th className="border px-3 py-2">{t("role")}</th>
+                  <th className="border px-3 py-2">{t("colStatus")}</th>
                   {authUser?.role === "admin" && (
-                    <th className="border px-3 py-2">Actions</th>
+                    <th className="border px-3 py-2">{t("colActions")}</th>
                   )}
                 </tr>
               </thead>

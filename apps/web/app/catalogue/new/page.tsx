@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { createProduct } from "../../../lib/api";
 import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 export default function NewProductPage() {
+  const t = useTranslations("catalogue");
   const authResult = useRequireAuth();
   const [form, setForm] = useState({
     productCode: "",
@@ -94,7 +96,7 @@ export default function NewProductPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t("description")}</label>
           <textarea
             name="description"
             value={form.description}
@@ -116,7 +118,7 @@ export default function NewProductPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("unit")}</label>
             <input
               type="text"
               name="unit"
@@ -161,11 +163,9 @@ export default function NewProductPage() {
             disabled={saving}
             className="bg-blue-600 text-white rounded px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save Product"}
+            {saving ? t("saving") : "Save Product"}
           </button>
-          <a href="/catalogue" className="border border-gray-400 rounded px-4 py-2 text-sm hover:bg-gray-50">
-            Cancel
-          </a>
+          <a href="/catalogue" className="border border-gray-400 rounded px-4 py-2 text-sm hover:bg-gray-50">{t("cancel")}</a>
         </div>
       </form>
     </div>

@@ -2,9 +2,9 @@ import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
 import { WhatsappConnectorService } from "./whatsapp-connector.service";
 import { WhatsappModule } from "./whatsapp.module";
-import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
+import type { ConnectorPluginManifest } from "../plugin-registry/plugin.interfaces";
 
-export const WhatsappPlugin: PluginManifest = {
+export const WhatsappPlugin: ConnectorPluginManifest = {
   name: "whatsapp",
   module: WhatsappModule,
   connector: {

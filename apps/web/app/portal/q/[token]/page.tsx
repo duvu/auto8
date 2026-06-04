@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
-import type { PortalQuoteView } from "../../../../lib/api";
+import type { PortalQuoteView } from "@auto8/shared";
 import {
   getPortalQuoteData,
   portalAcceptQuote,
@@ -13,6 +14,7 @@ import {
 type ActionState = "idle" | "accepted" | "rejected" | "revision";
 
 export default function PortalQuotePage({ params }: { params: { token: string } }) {
+  const t = useTranslations("portal");
   const { token } = params;
 
   const [quote, setQuote] = useState<PortalQuoteView | null>(null);
@@ -88,7 +90,7 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4">
-        <span className="text-xl font-bold text-blue-600">auto8</span>
+        <span className="text-xl font-bold text-blue-600">{t("brand")}</span>
       </header>
 
       <main className="w-full max-w-2xl mx-auto px-4 py-8">
@@ -116,10 +118,10 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
               <table className="w-full border-collapse text-sm min-w-[500px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="text-left font-medium text-gray-600 py-3 px-4">Description</th>
-                    <th className="text-right font-medium text-gray-600 py-3 px-4">Qty</th>
+                    <th className="text-left font-medium text-gray-600 py-3 px-4">{t("colDescription")}</th>
+                    <th className="text-right font-medium text-gray-600 py-3 px-4">{t("colQty")}</th>
                     <th className="text-right font-medium text-gray-600 py-3 px-4">Unit Price</th>
-                    <th className="text-right font-medium text-gray-600 py-3 px-4">Total</th>
+                    <th className="text-right font-medium text-gray-600 py-3 px-4">{t("total")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -134,23 +136,23 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
                 </tbody>
                 <tfoot className="bg-gray-50 border-t">
                   <tr>
-                    <td colSpan={3} className="py-2 px-4 text-right text-sm text-gray-600">Subtotal</td>
+                    <td colSpan={3} className="py-2 px-4 text-right text-sm text-gray-600">{t("subtotal")}</td>
                     <td className="py-2 px-4 text-right text-sm">{quote.subtotal.toLocaleString()} {quote.currency}</td>
                   </tr>
                   {quote.discount > 0 && (
                     <tr>
-                      <td colSpan={3} className="py-2 px-4 text-right text-sm text-gray-600">Discount</td>
+                      <td colSpan={3} className="py-2 px-4 text-right text-sm text-gray-600">{t("discount")}</td>
                       <td className="py-2 px-4 text-right text-sm text-green-600">-{quote.discount.toLocaleString()} {quote.currency}</td>
                     </tr>
                   )}
                   {quote.tax > 0 && (
                     <tr>
-                      <td colSpan={3} className="py-2 px-4 text-right text-sm text-gray-600">Tax</td>
+                      <td colSpan={3} className="py-2 px-4 text-right text-sm text-gray-600">{t("tax")}</td>
                       <td className="py-2 px-4 text-right text-sm">{quote.tax.toLocaleString()} {quote.currency}</td>
                     </tr>
                   )}
                   <tr className="border-t">
-                    <td colSpan={3} className="py-3 px-4 text-right font-semibold">Total</td>
+                    <td colSpan={3} className="py-3 px-4 text-right font-semibold">{t("total")}</td>
                     <td className="py-3 px-4 text-right font-bold text-lg">{quote.grandTotal.toLocaleString()} {quote.currency}</td>
                   </tr>
                 </tfoot>
@@ -159,7 +161,7 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
 
             {quote.notes && (
               <div className="bg-white border rounded p-4 text-sm text-gray-700">
-                <p className="font-medium mb-1">Notes</p>
+                <p className="font-medium mb-1">{t("notes")}</p>
                 <p className="whitespace-pre-wrap">{quote.notes}</p>
               </div>
             )}
@@ -210,7 +212,7 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
 
                 {showRejectForm && (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">Reason (optional)</p>
+                    <p className="text-sm font-medium">{t("declineNote")}</p>
                     <textarea
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
@@ -229,7 +231,7 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
                       <button
                         onClick={() => { setShowRejectForm(false); setNote(""); setActionError(null); }}
                         className="border rounded px-4 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
-                      >Cancel</button>
+                      >{t("cancel")}</button>
                     </div>
                   </div>
                 )}
@@ -255,7 +257,7 @@ export default function PortalQuotePage({ params }: { params: { token: string } 
                       <button
                         onClick={() => { setShowRevisionForm(false); setNote(""); setActionError(null); }}
                         className="border rounded px-4 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
-                      >Cancel</button>
+                      >{t("cancel")}</button>
                     </div>
                   </div>
                 )}

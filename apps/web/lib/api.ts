@@ -1,6 +1,4 @@
-import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, CatalogueUploadResult, CatalogueEnrichmentSuggestionView, ConfirmEnrichmentInput, ConnectorStatsView, ConnectorSyncSummary, ConnectorTestResult, ConnectorView, CreateConnectorInput, CreateProductInput, CustomerView, EnrichmentPreviewResponse, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, PaginatedResponse, PortalQuoteView, ProductView, QuoteEmailDraftView, QuoteEmailSendView, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, RfqMatchGroupView, RfqReplyView, RfqVolumePoint, ResponseTimeResult, SaveQuoteInput, SetupStatusView, ShareLinkResult, SlaConfigView, TopCustomerView, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UpdateSlaConfigInput, UploadPreviewResult, UserView, WebhookEndpointView, WinRateResult, WorkspaceView, QuoteDiffResult, ReviseQuoteResult } from "@auto8/shared";
-
-export type { ConnectorStatsView, CustomerView, PortalQuoteView, ResponseTimeResult, RfqVolumePoint, RfqReplyView, ShareLinkResult, TopCustomerView, WebhookEndpointView, WinRateResult, WorkspaceView };
+import type { AuditLogQueryParams, AuditLogView, BackgroundJobView, CatalogueUploadResult, ConfirmEnrichmentInput, ConnectorStatsView, ConnectorSyncSummary, ConnectorTestResult, ConnectorView, CreateConnectorInput, CreateProductInput, CustomerView, EnrichmentPreviewResponse, GenerateQuoteResult, IngestionMetricsSummary, IngestionRunView, IntakeEmailInput, LlmSettingView, LlmTestResult, MetricsSummaryView, PaginatedResponse, PortalQuoteView, ProductView, QuoteEmailDraftView, QuoteEmailSendView, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, RfqItemMatchView, RfqListItemView, RfqMatchGroupView, RfqReplyView, RfqVolumePoint, ResponseTimeResult, SaveQuoteInput, SetupStatusView, ShareLinkResult, SlaConfigView, TopCustomerView, UpdateConnectorInput, UpdateLlmSettingInput, UpdateQuoteEmailInput, UpdateSlaConfigInput, UploadPreviewResult, UserView, WebhookEndpointView, WinRateResult, WorkspaceView, QuoteDiffResult, ReviseQuoteResult } from "@auto8/shared";
 
 import { logout } from "./auth";
 import { API_BASE_URL } from "./config";
@@ -529,6 +527,10 @@ export function getAnalyticsTopCustomers() {
 
 export function getAnalyticsConnectors() {
   return request<ConnectorStatsView[]>("/analytics/connectors");
+}
+
+export function getAnalyticsSlaSummary() {
+  return request<MetricsSummaryView>("/analytics/sla-summary");
 }
 
 async function requestPublic<T>(path: string, init?: RequestInit): Promise<T> {

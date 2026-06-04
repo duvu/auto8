@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from "@nestjs/common";
 import { QuoteStatus, type Prisma } from "@prisma/client";
 
@@ -197,6 +198,10 @@ export class QuoteWorkflowService {
       throw new NotFoundException("Quote not found.");
     }
 
+    if (quote.status === QuoteStatus.revised) {
+      throw new UnprocessableEntityException("Revised quotes cannot be submitted for approval. Create a new revision.");
+    }
+
     if (quote.status !== QuoteStatus.draft) {
       throw new ConflictException("Only draft quotes can be submitted for approval.");
     }
@@ -232,6 +237,10 @@ export class QuoteWorkflowService {
 
     if (!quote) {
       throw new NotFoundException("Quote not found.");
+    }
+
+    if (quote.status === QuoteStatus.revised) {
+      throw new UnprocessableEntityException("Revised quotes cannot be approved. Create a new revision.");
     }
 
     if (quote.status !== QuoteStatus.pending_approval) {

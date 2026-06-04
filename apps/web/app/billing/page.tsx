@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 import { API_BASE_URL } from "../../lib/config";
@@ -25,6 +26,7 @@ interface SePayOrder {
 }
 
 export default function BillingPage() {
+  const t = useTranslations("billing");
   const auth = useRequireAuth("admin");
   const [sub, setSub] = useState<SubscriptionView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,7 @@ export default function BillingPage() {
   }
 
   return (
-    <AppShell title="Billing">
+    <AppShell title={t("title")}>
       <div className="max-w-lg">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>
@@ -114,7 +116,7 @@ export default function BillingPage() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-ink">Status</span>
                 <span className={`text-sm font-semibold ${isActive ? "text-green-600" : isTrial ? "text-blue-600" : "text-red-600"}`}>
-                  {isActive ? "Active" : isTrial ? "Trial" : "Expired"}
+                  {isActive ? t("planActive") : isTrial ? t("planTrial") : t("planExpired")}
                 </span>
               </div>
               {isTrial && (
@@ -132,7 +134,7 @@ export default function BillingPage() {
                 <h2 className="text-base font-semibold text-ink">Upgrade</h2>
 
                 <div className="border border-border rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-ink mb-2">Pay with card (Stripe)</h3>
+                  <h3 className="text-sm font-medium text-ink mb-2">{t("stripeCheckout")}</h3>
                   <button
                     onClick={() => { void handleStripeCheckout(); }}
                     disabled={checkoutLoading}

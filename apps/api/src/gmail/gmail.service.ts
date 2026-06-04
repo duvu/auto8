@@ -1,13 +1,15 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { google } from "googleapis";
+import { Injectable, Logger, type Type } from "@nestjs/common";
+import { google, type gmail_v1 } from "googleapis";
 import * as fs from "fs";
 import * as path from "path";
 
 import { ConfigService } from "@nestjs/config";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
-import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
+import type { NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorFieldDef, ConnectorType } from "@auto8/shared";
+import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
+import type { ConnectorPlugin } from "../plugin-registry/plugin.interfaces";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 
@@ -33,7 +35,12 @@ const INITIAL_BACKOFF_MS = 1000;
 const BATCH_CONCURRENCY = 5;
 
 @Injectable()
-export class GmailConnectorService implements ConnectorService {
+export class GmailConnectorService implements ConnectorPlugin {
+  readonly type: ConnectorType = "gmail";
+  readonly serviceToken: Type<unknown> = GmailConnectorService;
+  readonly fieldDefs: ConnectorFieldDef[] = CONNECTOR_FIELD_DEFS["gmail"];
+  readonly syncable: boolean = true;
+
   private readonly logger = new Logger(GmailConnectorService.name);
 
   constructor(
@@ -325,8 +332,8 @@ export class GmailConnectorService implements ConnectorService {
       try {
         return await fn();
       } catch (error) {
-        lastError = error as Error;
-        const statusCode = (error as any)?.response?.status ?? (error as any)?.code;
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const statusCode = getRetryStatusCode(error);
 
         // Don't retry on 4xx errors (except 429 rate limit)
         if (statusCode && statusCode >= 400 && statusCode < 500 && statusCode !== 429) {
@@ -345,7 +352,29 @@ export class GmailConnectorService implements ConnectorService {
   }
 }
 
-function parseGmailMessage(msg: any): GmailMessage | null {
+function getRetryStatusCode(error: unknown): number | undefined {
+  if (!isRecord(error)) return undefined;
+
+  const response = error["response"];
+  const responseStatus = isRecord(response) ? parseStatusCode(response["status"]) : undefined;
+  if (responseStatus !== undefined) return responseStatus;
+
+  return parseStatusCode(error["code"]);
+}
+
+function parseStatusCode(value: unknown): number | undefined {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return undefined;
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseGmailMessage(msg: gmail_v1.Schema$Message): GmailMessage | null {
   if (!msg?.id) return null;
 
   const headers: Record<string, string> = {};
@@ -382,7 +411,7 @@ function safeParseDate(dateStr: string): string {
   return new Date(parsed).toISOString();
 }
 
-function extractBody(payload: any): string {
+function extractBody(payload: gmail_v1.Schema$MessagePart | null | undefined): string {
   if (!payload) return "";
 
   // Prefer text/plain in multipart/alternative
@@ -436,13 +465,13 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-function extractAttachments(payload: any): GmailAttachment[] {
+function extractAttachments(payload: gmail_v1.Schema$MessagePart | null | undefined): GmailAttachment[] {
   const attachments: GmailAttachment[] = [];
   collectAttachments(payload, attachments);
   return attachments;
 }
 
-function collectAttachments(part: any, result: GmailAttachment[]): void {
+function collectAttachments(part: gmail_v1.Schema$MessagePart | null | undefined, result: GmailAttachment[]): void {
   if (!part) return;
 
   if (part.filename && part.body?.attachmentId) {

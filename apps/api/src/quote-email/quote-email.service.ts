@@ -30,7 +30,16 @@ export class QuoteEmailService {
   ) {}
 
   async generateDraft(quoteId: string, autoSend: boolean): Promise<void> {
-    const quote = await this.prisma.quote.findUnique({
+    const quote = await (this.prisma as unknown as {
+      quote: {
+        findUnique: (args: unknown) => Promise<{
+          id: string; version: number; customerName: string; customerCompany: string;
+          notes: string | null;
+          lineItems: Array<{ description: string; quantity: number; unitPrice: number; subtotal: number }>;
+          rfq: { reference: string; intake: { senderEmail: string | null; subject: string; body: string } };
+        } | null>
+      }
+    }).quote.findUnique({
       where: { id: quoteId },
       include: {
         lineItems: { orderBy: { sortOrder: "asc" } },
@@ -47,7 +56,7 @@ export class QuoteEmailService {
 
     const aiEnabled = this.config.get<boolean>("QUOTE_EMAIL_AI") === true;
 
-    let subject = this.generateSubject(quote.rfq.reference, quote.customerName);
+    let subject = this.generateSubject(quote.rfq.reference, quote.customerName, quote.version);
     let body = this.generateBody(quote, rfqIntake);
 
     if (aiEnabled) {
@@ -173,8 +182,7 @@ export class QuoteEmailService {
           select: { intakeId: true },
         });
         if (rfq?.intakeId) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (this.prisma.rfqIntake as any).update({
+          await this.prisma.rfqIntake.update({
             where: { id: rfq.intakeId },
             data: { rfqPipelineStatus: "sent" },
           });
@@ -191,7 +199,7 @@ export class QuoteEmailService {
       const errorMessage = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to send quote email for quoteId=${quoteId}: ${errorMessage}`);
 
-      const send = await this.prisma.quoteEmailSend.create({
+      await this.prisma.quoteEmailSend.create({
         data: {
           quoteEmailId: email.id,
           sentByUserId: actorId,
@@ -211,8 +219,9 @@ export class QuoteEmailService {
     }
   }
 
-  private generateSubject(reference: string, customerName: string): string {
-    return `Quote ${reference} – ${customerName}`;
+  private generateSubject(reference: string, customerName: string, version = 1): string {
+    const versionSuffix = version > 1 ? ` (v${version})` : "";
+    return `Quote ${reference}${versionSuffix} – ${customerName}`;
   }
 
   private generateBody(

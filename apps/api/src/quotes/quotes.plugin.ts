@@ -1,7 +1,7 @@
-import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
+import type { ModulePluginManifest } from "../plugin-registry/plugin.interfaces";
 import { QuotesModule } from "./quotes.module";
 
-export const QuotesPlugin: PluginManifest = {
+export const QuotesPlugin: ModulePluginManifest = {
   name: "quotes",
   module: QuotesModule,
 };

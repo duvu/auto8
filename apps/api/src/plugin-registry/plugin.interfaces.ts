@@ -11,8 +11,15 @@ export interface ConnectorPlugin {
   syncable: boolean;
 }
 
-export interface PluginManifest {
+export interface ConnectorPluginManifest {
   name: string;
   module: Type<unknown>;
-  connector?: ConnectorPlugin;
+  connector: ConnectorPlugin;
 }
+
+export interface ModulePluginManifest {
+  name: string;
+  module: Type<unknown>;
+}
+
+export type PluginManifest = ConnectorPluginManifest | ModulePluginManifest;

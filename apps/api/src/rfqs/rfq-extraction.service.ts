@@ -61,8 +61,7 @@ export class RfqExtractionService {
 
       // Build prompt — append attachment content if available
       let bodyContent = rfq.intake.body;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const attachmentContent = (rfq.intake as any).attachmentContent as string | null | undefined;
+      const attachmentContent = rfq.intake.attachmentContent;
       if (attachmentContent) {
         bodyContent += `\n\n[ATTACHMENTS]\n${attachmentContent}`;
       }
@@ -145,8 +144,7 @@ Return ONLY valid JSON like: {"items": [...], "customer": {...}}`;
         }
 
         // Upsert extracted customer info
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (tx as any).rfqExtractedCustomer.upsert({
+        await tx.rfqExtractedCustomer.upsert({
           where: { rfqId },
           create: { rfqId, ...customer },
           update: customer,
@@ -162,14 +160,12 @@ Return ONLY valid JSON like: {"items": [...], "customer": {...}}`;
           select: { intakeId: true },
         });
         if (currentRfq?.intakeId) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const intake = await (this.prisma.rfqIntake as any).findUnique({
+          const intake = await this.prisma.rfqIntake.findUnique({
             where: { id: currentRfq.intakeId },
             select: { rfqPipelineStatus: true },
           });
           if (intake?.rfqPipelineStatus === "classified") {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (this.prisma.rfqIntake as any).update({
+            await this.prisma.rfqIntake.update({
               where: { id: currentRfq.intakeId },
               data: { rfqPipelineStatus: "ready_for_quote" },
             });
@@ -214,8 +210,7 @@ Return ONLY valid JSON like: {"items": [...], "customer": {...}}`;
     const rfq = await this.prisma.rfq.findUnique({ where: { id: rfqId } });
     if (!rfq) throw new NotFoundException("RFQ not found.");
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const customer = await (this.prisma as any).rfqExtractedCustomer.findUnique({ where: { rfqId } });
+    const customer = await this.prisma.rfqExtractedCustomer.findUnique({ where: { rfqId } });
     if (!customer) return null;
 
     return {

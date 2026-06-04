@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -11,6 +12,7 @@ import { deleteCustomer, getCustomer, getCustomers, mergeCustomers, updateCustom
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 export default function CustomerDetailPage() {
+  const t = useTranslations("customers");
   const authResult = useRequireAuth();
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -129,19 +131,19 @@ export default function CustomerDetailPage() {
               <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} className="input w-full" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink mb-1">Email</label>
+              <label className="block text-sm font-medium text-ink mb-1">{t("email")}</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input w-full" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink mb-1">Phone</label>
+              <label className="block text-sm font-medium text-ink mb-1">{t("phone")}</label>
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="input w-full" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink mb-1">Address</label>
+              <label className="block text-sm font-medium text-ink mb-1">{t("address")}</label>
               <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} className="input w-full" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink mb-1">Notes</label>
+              <label className="block text-sm font-medium text-ink mb-1">{t("notes")}</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="input w-full" />
             </div>
 

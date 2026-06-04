@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 import type { PaginatedResponse, QuoteTemplateView } from "@auto8/shared";
@@ -10,6 +11,7 @@ import { deleteQuoteTemplate, duplicateTemplate, getQuoteTemplates } from "../..
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function QuoteTemplatesPage() {
+  const t = useTranslations("quoteTemplates");
   const authResult = useRequireAuth("admin");
   const [templates, setTemplates] = useState<QuoteTemplateView[]>([]);
   const [total, setTotal] = useState(0);
@@ -59,7 +61,7 @@ export default function QuoteTemplatesPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <AppShell title="Quote Templates">
+    <AppShell title={t("title")}>
       <div className="flex items-center gap-3 mb-4">
         <input
           type="text"
@@ -85,44 +87,38 @@ export default function QuoteTemplatesPage() {
             <table className="w-full text-sm">
               <thead className="bg-accent-soft text-muted uppercase text-xs">
                 <tr>
-                  <th className="px-4 py-3 text-left">Name</th>
-                  <th className="px-4 py-3 text-left">Currency</th>
+                  <th className="px-4 py-3 text-left">{t("colName")}</th>
+                  <th className="px-4 py-3 text-left">{t("currency")}</th>
                   <th className="px-4 py-3 text-left">Line Items</th>
                   <th className="px-4 py-3 text-left">Validity</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 text-right">{t("colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {templates.map((t) => (
-                  <tr key={t.id} className="hover:bg-accent-soft/40">
-                    <td className="px-4 py-3 font-medium text-ink">
-                      <Link href={`/quote-templates/${t.id}`} className="hover:underline">
-                        {t.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted">{t.currency}</td>
-                    <td className="px-4 py-3 text-muted">{t.lineItems.length}</td>
-                    <td className="px-4 py-3 text-muted">{t.validityDays ? `${t.validityDays} days` : "—"}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Link href={`/quote-templates/${t.id}`} className="text-accent hover:underline mr-3">
-                        Edit
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => void handleDuplicate(t.id)}
-                        className="text-muted hover:underline text-xs mr-3"
-                      >
-                        Duplicate
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(t.id, t.name)}
-                        className="text-red-500 hover:underline text-xs"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
+                {templates.map((tmpl) => (
+                   <tr key={tmpl.id} className="hover:bg-accent-soft/40">
+                     <td className="px-4 py-3 font-medium text-ink">
+                       <Link href={`/quote-templates/${tmpl.id}`} className="hover:underline">
+                         {tmpl.name}
+                       </Link>
+                     </td>
+                     <td className="px-4 py-3 text-muted">{tmpl.currency}</td>
+                     <td className="px-4 py-3 text-muted">{tmpl.lineItems.length}</td>
+                     <td className="px-4 py-3 text-muted">{tmpl.validityDays ? `${tmpl.validityDays} days` : "—"}</td>
+                     <td className="px-4 py-3 text-right">
+                       <Link href={`/quote-templates/${tmpl.id}`} className="text-accent hover:underline mr-3">{t("edit")}</Link>
+                       <button
+                         type="button"
+                         onClick={() => void handleDuplicate(tmpl.id)}
+                         className="text-muted hover:underline text-xs mr-3"
+                       >{t("duplicate")}</button>
+                       <button
+                         type="button"
+                         onClick={() => void handleDelete(tmpl.id, tmpl.name)}
+                         className="text-red-500 hover:underline text-xs"
+                       >{t("delete")}</button>
+                     </td>
+                   </tr>
                 ))}
               </tbody>
             </table>

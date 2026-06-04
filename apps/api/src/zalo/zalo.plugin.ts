@@ -2,9 +2,9 @@ import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
 import { ZaloConnectorService } from "./zalo-connector.service";
 import { ZaloModule } from "./zalo.module";
-import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
+import type { ConnectorPluginManifest } from "../plugin-registry/plugin.interfaces";
 
-export const ZaloPlugin: PluginManifest = {
+export const ZaloPlugin: ConnectorPluginManifest = {
   name: "zalo",
   module: ZaloModule,
   connector: {

@@ -1,7 +1,7 @@
-import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
+import type { ModulePluginManifest } from "../plugin-registry/plugin.interfaces";
 import { RfqsModule } from "./rfqs.module";
 
-export const RfqsPlugin: PluginManifest = {
+export const RfqsPlugin: ModulePluginManifest = {
   name: "rfqs",
   module: RfqsModule,
 };

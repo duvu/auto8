@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { createUser } from "../../../lib/api";
@@ -10,6 +11,7 @@ import { useRequireAuth } from "../../../lib/use-require-auth";
 const ROLES = ["quote_operator", "sales_approver", "admin"];
 
 export default function NewUserPage() {
+  const t = useTranslations("users");
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -46,7 +48,7 @@ export default function NewUserPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
+            <label className="block text-sm font-medium mb-1">{t("name")}</label>
             <input
               type="text"
               value={name}
@@ -59,7 +61,7 @@ export default function NewUserPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1">{t("email")}</label>
             <input
               type="email"
               value={email}
@@ -71,7 +73,7 @@ export default function NewUserPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Role</label>
+            <label className="block text-sm font-medium mb-1">{t("role")}</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
@@ -84,12 +86,12 @@ export default function NewUserPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
+            <label className="block text-sm font-medium mb-1">{t("password")}</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
+              placeholder={t("password")}
               required
               minLength={6}
               className="w-full border rounded px-3 py-2 text-sm"
@@ -104,9 +106,7 @@ export default function NewUserPage() {
               className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
               type="button"
               onClick={() => router.push("/users")}
-            >
-              Cancel
-            </button>
+            >{t("cancel")}</button>
           </div>
         </form>
       </div>

@@ -16,7 +16,9 @@
     "analytics": "Analytics",
     "workspace": "Workspace",
     "billing": "Billing",
-    "auditLog": "Audit Log"
+    "auditLog": "Audit Log",
+    "operations": "Operations",
+    "admin": "Admin"
   },
   "login": {
     "eyebrow": "auto8",

@@ -3,6 +3,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { ScheduleModule } from "@nestjs/schedule";
 import { LoggerModule } from "nestjs-pino";
+import { buildLogTransports } from "./logging/log-transports";
 import { I18nModule, AcceptLanguageResolver, HeaderResolver } from "nestjs-i18n";
 import * as path from "path";
 
@@ -69,10 +70,8 @@ import { ZaloModule } from "./zalo/zalo.module";
     ),
     LoggerModule.forRoot({
       pinoHttp: {
-        transport:
-          process.env["NODE_ENV"] !== "production"
-            ? { target: "pino-pretty", options: { colorize: true } }
-            : undefined,
+        level: process.env['LOG_LEVEL'] ?? 'info',
+        transport: buildLogTransports(),
       },
     }),
     PluginRegistryModule.register([

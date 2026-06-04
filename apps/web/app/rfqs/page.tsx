@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { formatState } from "../../lib/format";
 
@@ -20,6 +21,7 @@ const initialIntakeForm: IntakeEmailInput = {
 };
 
 export default function DashboardPage() {
+  const t = useTranslations("rfqs");
   const [rfqs, setRfqs] = useState<RfqListItemView[]>([]);
   const [rejectedRfqs, setRejectedRfqs] = useState<RfqListItemView[]>([]);
   const [activeTab, setActiveTab] = useState<"active" | "rejected">("active");
@@ -162,7 +164,7 @@ export default function DashboardPage() {
           <strong className="text-2xl font-bold text-ink">{stats.pendingApproval}</strong>
         </div>
         <div className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-1">
-          <span className="text-sm text-muted">Approved</span>
+          <span className="text-sm text-muted">{t("filterApproved")}</span>
           <strong className="text-2xl font-bold text-ink">{stats.approved}</strong>
         </div>
         <div className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-1">
@@ -184,7 +186,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <a href="/setup" className="text-xs font-medium text-amber-700 underline hover:text-amber-900">Go to Setup</a>
+            <a href="/setup" className="text-xs font-medium text-amber-700 underline hover:text-amber-900">{t("goToSetup")}</a>
             <button onClick={handleDismissBanner} className="text-amber-500 hover:text-amber-700 text-xs ml-2">✕</button>
           </div>
         </div>
@@ -206,9 +208,7 @@ export default function DashboardPage() {
               <input className="w-full border border-border rounded-lg px-3 py-2 bg-surface text-ink text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent" type="email" value={intakeForm.fromEmail} onChange={(event) => updateField("fromEmail", event.target.value)} required />
             </label>
           </div>
-          <label>
-            Subject
-            <input className="w-full border border-border rounded-lg px-3 py-2 bg-surface text-ink text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent" value={intakeForm.subject} onChange={(event) => updateField("subject", event.target.value)} required />
+          <label>{t("colSubject")}<input className="w-full border border-border rounded-lg px-3 py-2 bg-surface text-ink text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent" value={intakeForm.subject} onChange={(event) => updateField("subject", event.target.value)} required />
           </label>
           <label>
             Email body
@@ -242,7 +242,7 @@ export default function DashboardPage() {
                 onChange={(e) => setPipelineFilter(e.target.value)}
                 style={{ fontSize: 12, padding: "2px 6px", borderRadius: 4, border: "1px solid #ccc" }}
               >
-                <option value="">All</option>
+                <option value="">{t("filterAll")}</option>
                 {VALID_PIPELINE_STATUSES.filter((s) => s !== "new").map((s) => (
                   <option key={s} value={s}>{formatState(s)}</option>
                 ))}
@@ -255,7 +255,7 @@ export default function DashboardPage() {
                     onChange={(e) => setAssignedToFilter(e.target.value)}
                     style={{ fontSize: 12, padding: "2px 6px", borderRadius: 4, border: "1px solid #ccc" }}
                   >
-                    <option value="">All</option>
+                    <option value="">{t("filterAll")}</option>
                     <option value="unassigned">Unassigned</option>
                     {users.map((u) => (
                       <option key={u.id} value={u.id}>{u.name}</option>

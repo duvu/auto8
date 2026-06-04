@@ -1,15 +1,17 @@
 import * as fs from "fs";
 import * as path from "path";
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, type Type } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Client } from "@microsoft/microsoft-graph-client";
 import "isomorphic-fetch";
 import type { ConfidentialClientApplication, AuthenticationResult } from "@azure/msal-node";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
-import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
+import type { NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorFieldDef, ConnectorType } from "@auto8/shared";
+import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
+import type { ConnectorPlugin } from "../plugin-registry/plugin.interfaces";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 
@@ -29,6 +31,7 @@ type GraphMessage = {
   receivedDateTime: string;
   body?: { content?: string; contentType?: string };
   hasAttachments: boolean;
+  conversationId?: string;
 };
 
 type GraphAttachment = {
@@ -40,7 +43,12 @@ type GraphAttachment = {
 };
 
 @Injectable()
-export class OutlookConnectorService implements ConnectorService {
+export class OutlookConnectorService implements ConnectorPlugin {
+  readonly type: ConnectorType = "outlook";
+  readonly serviceToken: Type<unknown> = OutlookConnectorService;
+  readonly fieldDefs: ConnectorFieldDef[] = CONNECTOR_FIELD_DEFS["outlook"];
+  readonly syncable: boolean = true;
+
   private readonly logger = new Logger(OutlookConnectorService.name);
 
   constructor(
@@ -97,7 +105,7 @@ export class OutlookConnectorService implements ConnectorService {
       .api("/me/mailFolders/inbox/messages")
       .filter("isRead eq false")
       .top(maxResults)
-      .select("id,subject,from,receivedDateTime,body,hasAttachments")
+      .select("id,subject,from,receivedDateTime,body,hasAttachments,conversationId")
       .get() as { value: GraphMessage[] };
 
     return response.value ?? [];
@@ -106,7 +114,7 @@ export class OutlookConnectorService implements ConnectorService {
   private async downloadAttachments(
     client: Client,
     messageId: string,
-    storagePath: string,
+    baseDir: string,
   ): Promise<Array<{ filename: string; mimeType: string; sizeBytes: number; storagePath: string }>> {
     const response = await client
       .api(`/me/messages/${messageId}/attachments`)
@@ -114,7 +122,6 @@ export class OutlookConnectorService implements ConnectorService {
       .get() as { value: GraphAttachment[] };
 
     const attachments: Array<{ filename: string; mimeType: string; sizeBytes: number; storagePath: string }> = [];
-    const baseDir = this.config.get<string>("ATTACHMENT_STORAGE_PATH", "./attachments");
 
     for (const att of response.value ?? []) {
       // Only handle file attachments (not item attachments)
@@ -221,6 +228,19 @@ export class OutlookConnectorService implements ConnectorService {
       try {
         // Build normalised intake
         const intake = this.normalise(msg, connector);
+
+        if (msg.conversationId) {
+          const existingThreadIntake = await this.prisma.rfqIntake.findFirst({
+            where: { gmailThreadId: msg.conversationId, outlookMessageId: { not: msg.id } },
+            include: { rfq: { select: { id: true } } },
+            orderBy: { receivedAt: "asc" },
+          });
+          if (existingThreadIntake?.rfq) {
+            intake.isReply = true;
+            intake.replyToRfqId = existingThreadIntake.rfq.id;
+          }
+          intake.gmailThreadId = msg.conversationId;
+        }
 
         // Download attachments if any
         if (msg.hasAttachments) {

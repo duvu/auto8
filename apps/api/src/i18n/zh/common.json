@@ -2,19 +2,19 @@
   "validation": {
     "isEmail": "必须是有效的电子邮件地址",
     "isNotEmpty": "{property}不能为空",
-    "minLength": "{property}最少需要{constraints.0}个字符",
-    "maxLength": "{property}最多允许{constraints.0}个字符",
+    "minLength": "{property}至少包含{constraints.0}个字符",
+    "maxLength": "{property}最多包含{constraints.0}个字符",
     "isString": "{property}必须是字符串",
     "isEnum": "{property}必须是以下之一：{constraints.0}"
   },
   "auth": {
-    "invalidCredentials": "邮箱或密码无效",
+    "invalidCredentials": "无效的电子邮件或密码",
     "unauthorized": "需要身份验证",
-    "forbidden": "访问被拒绝",
+    "forbidden": "拒绝访问",
     "tokenExpired": "会话已过期，请重新登录"
   },
   "common": {
-    "notFound": "{resource}未找到",
+    "notFound": "找不到{resource}",
     "internalError": "发生意外错误"
   }
 }

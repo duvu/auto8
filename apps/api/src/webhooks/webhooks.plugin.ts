@@ -1,7 +1,7 @@
-import type { PluginManifest } from "../plugin-registry/plugin.interfaces";
+import type { ModulePluginManifest } from "../plugin-registry/plugin.interfaces";
 import { WebhooksModule } from "./webhooks.module";
 
-export const WebhooksPlugin: PluginManifest = {
+export const WebhooksPlugin: ModulePluginManifest = {
   name: "webhooks",
   module: WebhooksModule,
 };

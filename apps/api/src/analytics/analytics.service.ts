@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { QuoteStatus } from "@prisma/client";
 
-import type { ConnectorStatsView, ResponseTimeResult, RfqVolumePoint, TopCustomerView, WinRateResult } from "@auto8/shared";
+import type { ConnectorStatsView, ResponseTimeResult, RfqVolumePoint, TopCustomerView, WinRateResult, MetricsSummaryView } from "@auto8/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -128,8 +128,7 @@ export class AnalyticsService {
     return result.sort((a, b) => b.grandTotal - a.grandTotal).slice(0, 10);
   }
 
-  async getConnectors(workspaceId?: string): Promise<ConnectorStatsView[]> {
-    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  async getConnectors(workspaceId?: string): Promise<ConnectorStatsView[]> {    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const connectors = await this.prisma.connector.findMany({
@@ -158,5 +157,31 @@ export class AnalyticsService {
       lastSyncAt: c.lastSyncAt?.toISOString() ?? null,
       recentFailures: c.ingestionRuns.length,
     }));
+  }
+
+  async getSlaSummary(): Promise<MetricsSummaryView> {
+    const now = new Date();
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const terminalStatuses = [QuoteStatus.approved, QuoteStatus.customer_accepted, QuoteStatus.customer_rejected];
+
+    const rfqs = await (this.prisma as unknown as {
+      rfq: { findMany: (args: unknown) => Promise<Array<{ expectedResponseBy: Date | null; quote: { status: string } | null }>> }
+    }).rfq.findMany({
+      where: {
+        expectedResponseBy: { not: null },
+        quote: { status: { notIn: terminalStatuses } },
+      },
+      select: { expectedResponseBy: true, quote: { select: { status: true } } },
+    });
+
+    const overdueSlaCount = rfqs.filter((r) => r.expectedResponseBy != null && r.expectedResponseBy < now).length;
+    const dueTodaySlaCount = rfqs.filter((r) => {
+      const due = r.expectedResponseBy;
+      return due != null && due >= now && due <= todayEnd;
+    }).length;
+
+    return { overdueSlaCount, dueTodaySlaCount };
   }
 }

@@ -1,11 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException, type Type } from "@nestjs/common";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorFieldDef, ConnectorType } from "@auto8/shared";
+import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
-import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { ConnectorPlugin } from "../plugin-registry/plugin.interfaces";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 
@@ -43,7 +45,12 @@ interface MetaWebhookEntry {
 }
 
 @Injectable()
-export class WhatsappConnectorService implements ConnectorService {
+export class WhatsappConnectorService implements ConnectorPlugin {
+  readonly type: ConnectorType = "whatsapp";
+  readonly serviceToken: Type<unknown> = WhatsappConnectorService;
+  readonly fieldDefs: ConnectorFieldDef[] = CONNECTOR_FIELD_DEFS["whatsapp"];
+  readonly syncable: boolean = false;
+
   private readonly logger = new Logger(WhatsappConnectorService.name);
 
   constructor(

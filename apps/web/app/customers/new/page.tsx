@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import Link from "next/link";
@@ -10,6 +11,7 @@ import { createCustomer } from "../../../lib/api";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 export default function NewCustomerPage() {
+  const t = useTranslations("customers");
   const authResult = useRequireAuth();
   const router = useRouter();
 
@@ -74,19 +76,19 @@ export default function NewCustomerPage() {
             <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Jane Smith" className="input w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">Email</label>
+            <label className="block text-sm font-medium text-ink mb-1">{t("email")}</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@acme.com" className="input w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">Phone</label>
+            <label className="block text-sm font-medium text-ink mb-1">{t("phone")}</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 0100" className="input w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">Address</label>
+            <label className="block text-sm font-medium text-ink mb-1">{t("address")}</label>
             <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} placeholder="123 Main St, City, Country" className="input w-full" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">Notes</label>
+            <label className="block text-sm font-medium text-ink mb-1">{t("notes")}</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Any additional notes…" className="input w-full" />
           </div>
 
@@ -94,9 +96,7 @@ export default function NewCustomerPage() {
             <button type="submit" disabled={saving} className="btn btn-primary">
               {saving ? "Saving…" : "Create Customer"}
             </button>
-            <Link href="/customers" className="btn btn-secondary">
-              Cancel
-            </Link>
+            <Link href="/customers" className="btn btn-secondary">{t("cancel")}</Link>
           </div>
         </form>
       </div>

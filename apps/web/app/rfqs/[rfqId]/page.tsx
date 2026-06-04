@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
-import type { CustomerView, GenerateQuoteResult, QuoteLineItemInput, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
+import type { CustomerView, GenerateQuoteResult, QuoteDiffResult, QuoteLineItemInput, QuoteTemplateView, RfqDetailView, RfqExtractedCustomerView, RfqExtractedItemView, SaveQuoteInput } from "@auto8/shared";
 import { SUPPORTED_CURRENCIES, calcQuoteTotals } from "@auto8/shared";
 
 import { AppShell } from "../../../components/app-shell";
 import { ExtractedItemsPanel } from "../../../components/ExtractedItemsPanel";
 import { MatchReviewPanel } from "../../../components/MatchReviewPanel";
 import { QuoteEmailTab } from "../../../components/QuoteEmailTab";
-import { approveQuote, assignRfq, fetchRfqDetail, generateQuote, getCustomers, getExtractedCustomer, getExtractedItems, getQuoteRevisions, getQuoteTemplates, getUsers, reviseQuote, saveDraftQuote, saveCustomerFromRfq, submitQuote, getRfqReplies, createPortalShareLink, revokePortalShareLinks } from "../../../lib/api";
+import { approveQuote, assignRfq, fetchRfqDetail, generateQuote, getCustomers, getExtractedCustomer, getExtractedItems, getQuoteDiff, getQuoteRevisions, getQuoteTemplates, getUsers, reviseQuote, saveDraftQuote, saveCustomerFromRfq, submitQuote, getRfqReplies, createPortalShareLink, revokePortalShareLinks } from "../../../lib/api";
 
 type ReplyItem = {
   id: string;
@@ -52,6 +53,7 @@ function buildDraft(detail: RfqDetailView | null, extractedCustomer?: RfqExtract
 }
 
 export default function RfqDetailPage() {
+  const t = useTranslations("rfqDetail");
   const params = useParams<{ rfqId: string }>();
   const rfqId = String(params.rfqId);
   const [detail, setDetail] = useState<RfqDetailView | null>(null);
@@ -74,6 +76,8 @@ export default function RfqDetailPage() {
   const [revisions, setRevisions] = useState<RevisionItem[]>([]);
   const [revisionsOpen, setRevisionsOpen] = useState(false);
   const [revising, setRevising] = useState(false);
+  const [diff, setDiff] = useState<QuoteDiffResult | null>(null);
+  const [diffOpen, setDiffOpen] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [assigningRfq, setAssigningRfq] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -103,6 +107,10 @@ export default function RfqDetailPage() {
         setTemplates(templatesRes.data);
         setCustomers(customersRes.data);
         setUsers(usersRes.data.map((u) => ({ id: u.id, name: u.name })));
+        if (nextDetail.quote && (nextDetail.quote.version ?? 1) > 1) {
+          const diffResult = await getQuoteDiff(rfqId).catch(() => null);
+          if (diffResult) setDiff(diffResult);
+        }
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Failed to load RFQ detail.");
       } finally {
@@ -339,14 +347,12 @@ export default function RfqDetailPage() {
         </button>
       </div>
 
-      <div className="tab-bar">
+      <div className="tab-bar overflow-x-auto flex flex-nowrap">
         <button
           className={activeTab === "quote" ? "tab-active" : "tab"}
           type="button"
           onClick={() => setActiveTab("quote")}
-        >
-          Quote
-        </button>
+        >{t("tabQuote")}</button>
         {detail.quote?.status === "approved" && (
           <button
             className={activeTab === "email" ? "tab-active" : "tab"}
@@ -387,16 +393,16 @@ export default function RfqDetailPage() {
 
           <div className="field-grid">
             <div>
-              <div className="meta">Contact</div>
+              <div className="meta">{t("customerContact")}</div>
               <div>{detail.senderName ?? detail.slackSubmitterName ?? "Unknown sender"}</div>
               {detail.senderEmail ? <div className="mono">{detail.senderEmail}</div> : <div className="hint">No sender email recorded.</div>}
             </div>
             <div>
-              <div className="meta">Source</div>
+              <div className="meta">{t("source")}</div>
               <div>{detail.sourceLabel}</div>
             </div>
             <div>
-              <div className="meta">Received</div>
+              <div className="meta">{t("received")}</div>
               <div>{new Date(detail.receivedAt).toLocaleString()}</div>
             </div>
             {detail.expectedResponseBy && (
@@ -447,7 +453,7 @@ export default function RfqDetailPage() {
           ) : null}
 
           <div>
-            <div className="meta">Subject</div>
+            <div className="meta">{t("replySubject")}</div>
             <h3>{detail.subject}</h3>
           </div>
 
@@ -506,6 +512,11 @@ export default function RfqDetailPage() {
             ))}
             {!detail.history.length ? <div className="empty">No quote status events yet.</div> : null}
           </div>
+          {detail.history.filter((e) => e.status === "revised").length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <span className="badge" style={{ background: "#f3f4f6", color: "#6b7280" }}>Revised</span>
+            </div>
+          )}
           {detail.quote?.parentQuoteId && (
             <div style={{ marginTop: 12 }}>
               <button
@@ -522,9 +533,32 @@ export default function RfqDetailPage() {
                     <div className="timeline-card" key={rev.id} style={{ fontSize: 12 }}>
                       <div className="history-line">
                         <span className="badge dark">v{rev.version}</span>
-                        <span className={`badge ${rev.status === "approved" ? "success" : ""}`}>{formatState(rev.status)}</span>
+                        <span className={`badge ${rev.status === "approved" ? "success" : rev.status === "revised" ? "dark" : ""}`}>{formatState(rev.status)}</span>
                       </div>
                       <div className="meta">{rev.id}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {diff && diff.diffs.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="button-ghost"
+                onClick={() => setDiffOpen((o) => !o)}
+                style={{ fontSize: 12 }}
+              >
+                {diffOpen ? "Hide" : "Show"} changes from v{(detail.quote?.version ?? 1) - 1}
+              </button>
+              {diffOpen && (
+                <div style={{ marginTop: 8, fontSize: 12, background: "var(--surface)", padding: "10px 14px", borderRadius: 6 }}>
+                  {diff.diffs.map((d, i) => (
+                    <div key={i} style={{ marginBottom: 6 }}>
+                      <span className="badge dark" style={{ marginRight: 6 }}>{d.field}</span>
+                      <span className="meta">before: </span><span>{JSON.stringify(d.before)}</span>
+                      <span className="meta" style={{ marginLeft: 8 }}>after: </span><span>{JSON.stringify(d.after)}</span>
                     </div>
                   ))}
                 </div>
@@ -630,9 +664,9 @@ export default function RfqDetailPage() {
           <textarea disabled={quoteLocked} value={draft.notes ?? ""} onChange={(event) => updateDraftField("notes", event.target.value)} />
         </label>
 
-        <div className="stack">
+        <div className="stack overflow-x-auto">
           <div className="panel-header">
-            <h3>Line items</h3>
+            <h3>{t("sectionItems")}</h3>
             <button className="button-ghost" disabled={quoteLocked} type="button" onClick={addLineItem}>
               Add line item
             </button>
@@ -644,9 +678,7 @@ export default function RfqDetailPage() {
 
             return (
             <div className="line-item-row" key={`${detail.id}-item-${index}`}>
-              <label>
-                Description
-                <input disabled={quoteLocked} value={item.description} onChange={(event) => updateLineItem(index, "description", event.target.value)} />
+              <label>{t("itemDescription")}<input disabled={quoteLocked} value={item.description} onChange={(event) => updateLineItem(index, "description", event.target.value)} />
               </label>
               <label>
                 Quantity
@@ -684,9 +716,9 @@ export default function RfqDetailPage() {
           })}
         </div>
 
-        <div className="actions">
+        <div className="actions flex flex-wrap gap-2">
           <button
-            className="button"
+            className="button w-full sm:w-auto"
             disabled={working || quoteLocked}
             type="button"
             onClick={() => void runAction(() => saveDraftQuote(rfqId, { ...draft }), "Draft quote saved.")}
@@ -694,7 +726,7 @@ export default function RfqDetailPage() {
             {working ? "Working..." : detail.quote ? "Update draft" : "Create draft"}
           </button>
           <button
-            className="button-secondary"
+            className="button-secondary w-full sm:w-auto"
             disabled={working || generating || quoteLocked}
             type="button"
             onClick={() => void handleGenerateQuote()}
@@ -702,7 +734,7 @@ export default function RfqDetailPage() {
             {generating ? "Generating..." : "Generate with AI"}
           </button>
           <button
-            className="button-secondary"
+            className="button-secondary w-full sm:w-auto"
             disabled={working || !detail.quote || detail.quote.status !== "draft"}
             type="button"
             onClick={() => void runAction(() => submitQuote(detail.quote!.id), "Quote submitted for sales approval.")}
@@ -710,7 +742,7 @@ export default function RfqDetailPage() {
             Submit for approval
           </button>
           <button
-            className="button-secondary"
+            className="button-secondary w-full sm:w-auto"
             disabled={working || !detail.quote || !canApprove}
             type="button"
             onClick={() => void runAction(() => approveQuote(detail.quote!.id), "Quote approved by sales.")}
@@ -719,7 +751,7 @@ export default function RfqDetailPage() {
           </button>
           {detail.quote?.status === "approved" && (
             <button
-              className="button-secondary"
+              className="button-secondary w-full sm:w-auto"
               disabled={revising}
               type="button"
               onClick={() => void handleRevise()}
@@ -729,7 +761,7 @@ export default function RfqDetailPage() {
           )}
           {detail.quote && (
             <button
-              className="button-secondary"
+              className="button-secondary w-full sm:w-auto"
               disabled={sharing}
               type="button"
               onClick={() => void handleShare()}
@@ -749,16 +781,12 @@ export default function RfqDetailPage() {
               type="button"
               className="border rounded px-3 py-2 text-sm hover:bg-gray-50"
               onClick={() => void navigator.clipboard.writeText(shareUrl)}
-            >
-              Copy
-            </button>
+            >{t("copy")}</button>
             <button
               type="button"
               className="border rounded px-3 py-2 text-sm text-red-600 hover:bg-red-50"
               onClick={() => void handleRevokeShare()}
-            >
-              Revoke
-            </button>
+            >{t("revokePortalLink")}</button>
           </div>
         )}
       </section>

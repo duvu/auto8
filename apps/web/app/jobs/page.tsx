@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import type { BackgroundJobView, PaginatedResponse } from "@auto8/shared";
 import { getJobs } from "../../lib/api";
 import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function JobsPage() {
+  const t = useTranslations("jobs");
   const [jobs, setJobs] = useState<BackgroundJobView[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -55,7 +57,7 @@ export default function JobsPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <AppShell title="Background Jobs">
+    <AppShell title={t("title")}>
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => void load()} className="border rounded px-3 py-1.5 text-sm hover:bg-gray-50">
@@ -70,10 +72,10 @@ export default function JobsPage() {
             className="border rounded px-2 py-1.5 text-sm"
           >
             <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="running">Running</option>
-            <option value="done">Done</option>
-            <option value="failed">Failed</option>
+            <option value="pending">{t("statusPending")}</option>
+            <option value="running">{t("statusRunning")}</option>
+            <option value="done">{t("statusDone")}</option>
+            <option value="failed">{t("statusFailed")}</option>
           </select>
           <select
             value={typeFilter}
@@ -100,11 +102,11 @@ export default function JobsPage() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-gray-50 text-left">
-                    <th className="border px-3 py-2">Type</th>
-                    <th className="border px-3 py-2">Status</th>
-                    <th className="border px-3 py-2">Attempts</th>
-                    <th className="border px-3 py-2">Error</th>
-                    <th className="border px-3 py-2">Created</th>
+                    <th className="border px-3 py-2">{t("colType")}</th>
+                    <th className="border px-3 py-2">{t("colStatus")}</th>
+                    <th className="border px-3 py-2">{t("colAttempts")}</th>
+                    <th className="border px-3 py-2">{t("colError")}</th>
+                    <th className="border px-3 py-2">{t("colCreated")}</th>
                     <th className="border px-3 py-2">Updated</th>
                   </tr>
                 </thead>

@@ -9,12 +9,7 @@ export class SlaService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getConfig(): Promise<SlaConfigView> {
-    const config = await (this.prisma as unknown as {
-      slaConfig: {
-        findUnique: (args: unknown) => Promise<{ id: string; defaultResponseHours: number; warningThresholdHours: number; updatedAt: Date } | null>;
-        create: (args: unknown) => Promise<{ id: string; defaultResponseHours: number; warningThresholdHours: number; updatedAt: Date }>;
-      };
-    }).slaConfig.findUnique({ where: { id: "default" } });
+    const config = await this.prisma.slaConfig.findUnique({ where: { id: "default" } });
 
     if (config) {
       return {
@@ -25,11 +20,7 @@ export class SlaService {
     }
 
     // Create default if not exists
-    const created = await (this.prisma as unknown as {
-      slaConfig: {
-        create: (args: unknown) => Promise<{ id: string; defaultResponseHours: number; warningThresholdHours: number; updatedAt: Date }>;
-      };
-    }).slaConfig.create({ data: { id: "default" } });
+    const created = await this.prisma.slaConfig.create({ data: { id: "default" } });
 
     return {
       defaultResponseHours: created.defaultResponseHours,
@@ -39,11 +30,7 @@ export class SlaService {
   }
 
   async updateConfig(input: UpdateSlaConfigInput): Promise<SlaConfigView> {
-    const updated = await (this.prisma as unknown as {
-      slaConfig: {
-        upsert: (args: unknown) => Promise<{ id: string; defaultResponseHours: number; warningThresholdHours: number; updatedAt: Date }>;
-      };
-    }).slaConfig.upsert({
+    const updated = await this.prisma.slaConfig.upsert({
       where: { id: "default" },
       create: {
         id: "default",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import type { ProductView } from "@auto8/shared";
 import { getProduct, updateProduct, reactivateProduct, deleteProduct, updateProductMarkup } from "../../../lib/api";
@@ -8,6 +9,7 @@ import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 export default function CatalogueEditPage() {
+  const t = useTranslations("catalogue");
   const authResult = useRequireAuth();
   const params = useParams();
   const router = useRouter();
@@ -171,7 +173,7 @@ export default function CatalogueEditPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t("description")}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -191,7 +193,7 @@ export default function CatalogueEditPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("unit")}</label>
             <input
               type="text"
               value={unit}
@@ -263,7 +265,7 @@ export default function CatalogueEditPage() {
           disabled={saving}
           className="flex-1 bg-blue-600 text-white rounded px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50"
         >
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? t("saving") : "Save Changes"}
         </button>
         <button
           onClick={() => void handleToggleActive()}
@@ -283,9 +285,7 @@ export default function CatalogueEditPage() {
         <button
           onClick={() => router.push("/catalogue")}
           className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
-        >
-          Cancel
-        </button>
+        >{t("cancel")}</button>
       </div>
 
       {product && product.categoryTags && product.categoryTags.length > 0 && (

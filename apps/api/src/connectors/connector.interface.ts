@@ -36,6 +36,7 @@ export type NormalizedRfqIntake = {
   replyToRfqId?: string | null;
 };
 
+/** @deprecated Use ConnectorPlugin from plugin-registry/plugin.interfaces.ts instead */
 export interface ConnectorService {
   isConfigured(): boolean;
   sync(connector: Connector): Promise<ConnectorSyncSummary>;

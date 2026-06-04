@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
-import { WebhookEndpointView, listWebhookEndpoints, createWebhookEndpoint, deleteWebhookEndpoint, testWebhookEndpoint } from "../../lib/api";
+import type { WebhookEndpointView } from "@auto8/shared";
+import { listWebhookEndpoints, createWebhookEndpoint, deleteWebhookEndpoint, testWebhookEndpoint } from "../../lib/api";
 
 const AVAILABLE_EVENTS = ["rfq.created", "quote.approved", "quote.sent"];
 
 export default function WebhooksPage() {
+  const t = useTranslations("webhooks");
   const [endpoints, setEndpoints] = useState<WebhookEndpointView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,11 +143,11 @@ export default function WebhooksPage() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-gray-50 text-left">
-                      <th className="border px-3 py-2">URL</th>
-                      <th className="border px-3 py-2">Events</th>
-                      <th className="border px-3 py-2">Status</th>
+                      <th className="border px-3 py-2">{t("url")}</th>
+                      <th className="border px-3 py-2">{t("events")}</th>
+                      <th className="border px-3 py-2">{t("colStatus")}</th>
                       <th className="border px-3 py-2">Created</th>
-                      <th className="border px-3 py-2">Actions</th>
+                      <th className="border px-3 py-2">{t("colActions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -176,16 +179,12 @@ export default function WebhooksPage() {
                               className="text-xs border rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-50"
                               onClick={() => void handleTest(ep.id)}
                               disabled={working === ep.id}
-                            >
-                              Test
-                            </button>
+                            >{t("test")}</button>
                             <button
                               className="text-xs border rounded px-2 py-1 hover:bg-red-50 text-red-600 disabled:opacity-50"
                               onClick={() => void handleDelete(ep.id)}
                               disabled={working === ep.id}
-                            >
-                              Delete
-                            </button>
+                            >{t("delete")}</button>
                           </div>
                           {testResults[ep.id] && (
                             <div className="font-mono text-[10px] mt-1" style={{ color: testResults[ep.id]?.startsWith("OK") ? "green" : "red" }}>

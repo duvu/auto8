@@ -1,34 +1,54 @@
-import { Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import type { ConnectorType } from "@auto8/shared";
 
-import { PLUGIN_MANIFESTS_TOKEN, type ConnectorPlugin, type PluginManifest } from "./plugin.interfaces";
+import {
+  PLUGIN_MANIFESTS_TOKEN,
+  type ConnectorPlugin,
+  type ConnectorPluginManifest,
+  type PluginManifest,
+} from "./plugin.interfaces";
 
 @Injectable()
-export class PluginRegistryService implements OnModuleInit {
+export class PluginRegistryService {
   private readonly logger = new Logger(PluginRegistryService.name);
   private readonly connectorPlugins = new Map<string, ConnectorPlugin>();
+  private moduleRef?: ModuleRef;
 
   constructor(
     @Inject(PLUGIN_MANIFESTS_TOKEN) private readonly manifests: PluginManifest[],
-    private readonly moduleRef: ModuleRef,
   ) {}
+
+  setModuleRef(ref: ModuleRef): void {
+    this.moduleRef = ref;
+  }
 
   onModuleInit(): void {
     for (const manifest of this.manifests) {
-      if (manifest.connector) {
-        const { type } = manifest.connector;
+      if ('connector' in manifest) {
+        const connectorManifest = manifest as ConnectorPluginManifest;
+        const { type } = connectorManifest.connector;
         if (this.connectorPlugins.has(type)) {
           throw new Error(
-            `[PluginRegistry] Duplicate connector type "${type}" declared by "${manifest.name}" — already registered.`,
+            `[PluginRegistry] Duplicate connector type "${type}" declared by "${connectorManifest.name}" — already registered.`,
           );
         }
-        this.connectorPlugins.set(type, manifest.connector);
-        this.logger.log(`Registered connector plugin: ${type} (${manifest.name})`);
+        this.connectorPlugins.set(type, connectorManifest.connector);
+        this.logger.log(`Registered connector plugin: ${type} (${connectorManifest.name})`);
       }
     }
+  }
 
-    this.validate();
+  validate(): void {
+    for (const plugin of this.connectorPlugins.values()) {
+      try {
+        this.moduleRef?.get(plugin.serviceToken, { strict: false });
+      } catch {
+        this.logger.warn(
+          `[PluginRegistry] Connector plugin "${plugin.type}" declares serviceToken "${plugin.serviceToken.name}" but it cannot be resolved from the module context. Ensure its module is imported in PluginRegistryModule.register([...]).`,
+        );
+      }
+    }
   }
 
   getConnectorPlugin(type: ConnectorType | string): ConnectorPlugin | undefined {
@@ -37,17 +57,5 @@ export class PluginRegistryService implements OnModuleInit {
 
   getAllConnectorPlugins(): ConnectorPlugin[] {
     return Array.from(this.connectorPlugins.values());
-  }
-
-  private validate(): void {
-    for (const plugin of this.connectorPlugins.values()) {
-      try {
-        this.moduleRef.get(plugin.serviceToken, { strict: false });
-      } catch {
-        throw new Error(
-          `[PluginRegistry] Connector plugin "${plugin.type}" declares serviceToken "${plugin.serviceToken.name}" but it cannot be resolved from the module context. Ensure its module is imported in PluginRegistryModule.register([...]).`,
-        );
-      }
-    }
   }
 }

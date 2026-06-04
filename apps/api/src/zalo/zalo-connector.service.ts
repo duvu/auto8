@@ -1,10 +1,12 @@
-import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { Injectable, Logger, UnauthorizedException, type Type } from "@nestjs/common";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorFieldDef, ConnectorType } from "@auto8/shared";
+import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
-import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { ConnectorPlugin } from "../plugin-registry/plugin.interfaces";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 import type { ZaloWebhookPayload } from "./dto/zalo-webhook.dto";
@@ -14,7 +16,12 @@ const MAX_MEDIA_BYTES = 20 * 1024 * 1024; // 20 MB
 const HANDLED_EVENTS = new Set(["user_send_text", "user_send_image", "user_send_file"]);
 
 @Injectable()
-export class ZaloConnectorService implements ConnectorService {
+export class ZaloConnectorService implements ConnectorPlugin {
+  readonly type: ConnectorType = "zalo";
+  readonly serviceToken: Type<unknown> = ZaloConnectorService;
+  readonly fieldDefs: ConnectorFieldDef[] = CONNECTOR_FIELD_DEFS["zalo"];
+  readonly syncable: boolean = false;
+
   private readonly logger = new Logger(ZaloConnectorService.name);
 
   constructor(

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { LlmProviderKind, LlmSettingView, LlmTestResult, SlaConfigView } from "@auto8/shared";
 import { getLlmSetting, getSlaConfig, updateLlmSetting, updateSlaConfig, testLlmConnection } from "../../lib/api";
 import { AppShell } from "../../components/app-shell";
@@ -21,6 +22,7 @@ const DEFAULT_MODELS: Record<LlmProviderKind, string> = {
 };
 
 export default function SettingsPage() {
+  const t = useTranslations("settings");
   const [setting, setSetting] = useState<LlmSettingView | null>(null);
   const [provider, setProvider] = useState<LlmProviderKind>("openai");
   const [model, setModel] = useState("");
@@ -85,7 +87,7 @@ export default function SettingsPage() {
         baseUrl: baseUrl || undefined,
       });
       setSetting(updated);
-      setSaveMessage("Settings saved.");
+      setSaveMessage(t("saveSuccess"));
       setApiKey(""); // Clear key field after save
     } catch {
       setSaveMessage("Failed to save settings.");
@@ -139,7 +141,7 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Model</label>
+            <label className="block text-sm font-medium mb-1">{t("llmModel")}</label>
             <input
               type="text"
               value={model}
@@ -186,7 +188,7 @@ export default function SettingsPage() {
               disabled={saving}
               className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Save Settings"}
+              {saving ? t("saving") : "Save Settings"}
             </button>
             <button
               onClick={() => void handleTest()}
@@ -250,7 +252,7 @@ export default function SettingsPage() {
               disabled={slaSaving}
               className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              {slaSaving ? "Saving..." : "Save SLA Settings"}
+              {slaSaving ? t("saving") : "Save SLA Settings"}
             </button>
           </div>
           {slaSaveMessage && (

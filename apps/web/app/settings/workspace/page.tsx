@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "../../../components/app-shell";
 import { useRequireAuth } from "../../../lib/use-require-auth";
-import { getWorkspace, updateWorkspace, type WorkspaceView } from "../../../lib/api";
+import { getWorkspace, updateWorkspace } from "../../../lib/api";
+import type { WorkspaceView } from "@auto8/shared";
 import { API_BASE_URL } from "../../../lib/config";
 
 export default function WorkspaceSettingsPage() {

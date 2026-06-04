@@ -23,7 +23,6 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { PaginationQueryDto } from "../common/dto/pagination.dto";
 import { buildPaginatedResponse } from "../common/utils/paginate";
-import { RfqExtractionService } from "./rfq-extraction.service";
 import { RfqClassificationService } from "./rfq-classification.service";
 import { JobsService } from "../jobs/jobs.service";
 import { optionalString } from "../common/utils/string.util";
@@ -63,7 +62,6 @@ export class RfqIntakeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
-    private readonly rfqExtractionService: RfqExtractionService,
     private readonly rfqClassificationService: RfqClassificationService,
     private readonly jobsService: JobsService,
     private readonly slaService: SlaService,
@@ -432,8 +430,7 @@ sourceType: "email" | "slack" | "outlook" | "whatsapp" | "telegram" | "zalo";
           }))
         : [],
       emailSummary: (() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const emailRecord = (rfq.quote as any)?.email as
+        const emailRecord = (rfq.quote as { email?: { sends: Array<{ status: string; sentAt: Date }> } | null } | null)?.email as
           | { sends: Array<{ status: string; sentAt: Date }> }
           | null
           | undefined;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import type { ConnectorType, ConnectorView } from "@auto8/shared";
@@ -12,6 +13,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { useRequireAuth } from "../../../../lib/use-require-auth";
 
 export default function EditConnectorPage({ params }: { params: { id: string } }) {
+  const t = useTranslations("connectors");
   const router = useRouter();
   const searchParams = useSearchParams();
   const connectedBanner = searchParams.get("connected") === "true";
@@ -131,9 +133,7 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
 
         <form onSubmit={(e) => void handleSave(e)} className="space-y-4">
           <div>
-            <label htmlFor="label" className="block text-sm font-medium mb-1">
-              Label
-            </label>
+            <label htmlFor="label" className="block text-sm font-medium mb-1">{t("label")}</label>
             <input
               id="label"
               type="text"
@@ -157,7 +157,7 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Credentials</label>
+            <label className="block text-sm font-medium mb-2">{t("credentials")}</label>
             <p className="text-xs text-gray-500 mb-3">
               Leave any field blank to keep the existing value. Only filled fields will be updated.
             </p>
@@ -167,6 +167,23 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
               onChange={setCredentials}
               editMode
             />
+            {connectorType === "whatsapp" && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+                <p className="font-medium text-blue-800 mb-1">Webhook URL</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white border border-blue-200 rounded px-2 py-1 text-blue-900 font-mono break-all">
+                    {typeof window !== "undefined" ? window.location.origin.replace(":3000", ":4000") : ""}/webhooks/whatsapp
+                  </code>
+                  <button
+                    type="button"
+                    className="border border-blue-300 rounded px-2 py-1 hover:bg-blue-100 text-blue-700"
+                    onClick={() => void navigator.clipboard.writeText(`${window.location.origin.replace(":3000", ":4000")}/webhooks/whatsapp`)}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {testResult && (
@@ -185,26 +202,24 @@ export default function EditConnectorPage({ params }: { params: { id: string } }
           <div className="flex gap-3 flex-wrap">
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 w-full sm:w-auto"
               disabled={saving}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? t("saving") : t("save")}
             </button>
             <button
               type="button"
-              className="border rounded px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+              className="border rounded px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50 w-full sm:w-auto"
               disabled={testing}
               onClick={() => void handleTest()}
             >
-              {testing ? "Testing..." : "Test connection"}
+              {testing ? t("testingConnection") : t("testConnection")}
             </button>
             <button
               type="button"
-              className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
+              className="border rounded px-4 py-2 text-sm hover:bg-gray-50 w-full sm:w-auto"
               onClick={() => router.push("/connectors")}
-            >
-              Cancel
-            </button>
+            >{t("cancel")}</button>
           </div>
         </form>
       </div>

@@ -15,7 +15,7 @@ interface AppShellProps {
 
 const NAV_SECTIONS = [
   {
-    labelKey: 'Operations',
+    labelKey: 'operations',
     links: [
       { href: '/rfqs', tKey: 'rfqs', icon: '📋' },
       { href: '/customers', tKey: 'customers', icon: '👥' },
@@ -24,7 +24,7 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    labelKey: 'Settings',
+    labelKey: 'settings',
     links: [
       { href: '/connectors', tKey: 'connectors', icon: '🔌' },
       { href: '/webhooks', tKey: 'webhooks', icon: '🔔' },
@@ -50,7 +50,6 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
   const t = useTranslations('nav');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
   const [currentLocale, setCurrentLocale] = useState('en');
   const searchRef = useRef<HTMLInputElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -112,7 +111,7 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         {NAV_SECTIONS.map(section => (
           <div key={section.labelKey} className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#b8c8d8] px-2 mb-1">{section.labelKey}</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#b8c8d8] px-2 mb-1">{t(section.labelKey as Parameters<typeof t>[0])}</p>
             {section.links.map(link => {
               const active = pathname === link.href || pathname.startsWith(link.href + '/');
               return (
@@ -129,7 +128,7 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
         ))}
         {isAdmin && (
           <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#b8c8d8] px-2 mb-1">Admin</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#b8c8d8] px-2 mb-1">{t('admin')}</p>
             {ADMIN_NAV.map(link => {
               const active = pathname === link.href;
               return (
@@ -216,7 +215,6 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
           <div className="flex-1 max-w-xs hidden sm:block">
             <div className="relative">
               <input ref={searchRef} type="text" placeholder="Search… (/)"
-                onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
                 className="w-full text-sm border border-[#e5e7eb] rounded-lg px-3 py-1.5 pl-8 focus:outline-none focus:ring-2 focus:ring-[#c9612c]/30 focus:border-[#c9612c]" />
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -249,10 +247,40 @@ export function AppShell({ children, title, breadcrumbs, actions }: AppShellProp
         </header>
 
         {/* Main scrollable content */}
-        <main className="flex-1 overflow-y-auto bg-[#f5f5f5] p-4 sm:p-6">
+        <main className="flex-1 overflow-y-auto bg-[#f5f5f5] p-4 sm:p-6 pb-20 md:pb-6">
           {children}
         </main>
       </div>
+
+      {/* Mobile bottom nav (visible only on <md) */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#e5e7eb] flex items-stretch h-16 safe-area-inset-bottom">
+        {[
+          { href: '/rfqs', icon: '📋', tKey: 'rfqs' },
+          { href: '/customers', icon: '👥', tKey: 'customers' },
+          { href: '/catalogue', icon: '📦', tKey: 'catalogue' },
+          { href: '/connectors', icon: '🔌', tKey: 'connectors' },
+          { href: '/analytics', icon: '📊', tKey: 'analytics', adminOnly: true },
+          { href: '/settings/workspace', icon: '⚙️', tKey: 'settings', nonAdmin: true },
+        ]
+          .filter(link => {
+            if ('adminOnly' in link && link.adminOnly) return isAdmin;
+            if ('nonAdmin' in link && link.nonAdmin) return !isAdmin;
+            return true;
+          })
+          .slice(0, 5)
+          .map(link => {
+            const active = pathname === link.href || pathname.startsWith(link.href + '/');
+            return (
+              <Link key={link.href} href={link.href}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors ${
+                  active ? 'text-[#c9612c]' : 'text-[#6b7280] hover:text-[#111827]'
+                }`}>
+                <span className="text-lg leading-none">{link.icon}</span>
+                <span>{t(link.tKey as Parameters<typeof t>[0])}</span>
+              </Link>
+            );
+          })}
+      </nav>
     </div>
   );
 }

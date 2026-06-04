@@ -16,7 +16,9 @@
     "analytics": "Phân tích",
     "workspace": "Không gian làm việc",
     "billing": "Thanh toán",
-    "auditLog": "Nhật ký kiểm toán"
+    "auditLog": "Nhật ký kiểm toán",
+    "operations": "Vận hành",
+    "admin": "Quản trị"
   },
   "login": {
     "eyebrow": "auto8",

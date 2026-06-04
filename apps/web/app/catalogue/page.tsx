@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import type { ProductView, PaginatedResponse } from "@auto8/shared";
 import {
   getProducts,
@@ -12,6 +13,7 @@ import { AppShell } from "../../components/app-shell";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function CataloguePage() {
+  const t = useTranslations("catalogue");
   const authResult = useRequireAuth();
   const [products, setProducts] = useState<ProductView[]>([]);
   const [total, setTotal] = useState(0);
@@ -83,10 +85,10 @@ export default function CataloguePage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <AppShell title="Product Catalogue">
+    <AppShell title={t("title")}>
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Product Catalogue</h1>
+        <h1 className="text-2xl font-bold">{t("title")}</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => void handleExport()}
@@ -141,14 +143,14 @@ export default function CataloguePage() {
               <thead>
                 <tr className="bg-gray-50 text-left">
                   <th className="border px-3 py-2">Code</th>
-                  <th className="border px-3 py-2">Name</th>
+                  <th className="border px-3 py-2">{t("name")}</th>
                   <th className="border px-3 py-2">Brand</th>
-                  <th className="border px-3 py-2">Unit</th>
+                  <th className="border px-3 py-2">{t("unit")}</th>
                    <th className="border px-3 py-2">Base Price</th>
                    <th className="border px-3 py-2">Markup %</th>
                    <th className="border px-3 py-2">Tags</th>
                    <th className="border px-3 py-2">Status</th>
-                   <th className="border px-3 py-2">Actions</th>
+                   <th className="border px-3 py-2">{t("colActions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -201,9 +203,7 @@ export default function CataloguePage() {
                         <a
                           href={`/catalogue/${p.id}`}
                           className="text-blue-600 hover:underline text-xs"
-                        >
-                          Edit
-                        </a>
+                        >{t("edit")}</a>
                         {p.isActive ? (
                           <button
                             onClick={() => void handleDeactivate(p.id)}

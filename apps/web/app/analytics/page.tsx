@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import type {
   ConnectorStatsView,
@@ -8,7 +9,7 @@ import type {
   RfqVolumePoint,
   TopCustomerView,
   WinRateResult,
-} from "../../lib/api";
+} from "@auto8/shared";
 import {
   getAnalyticsConnectors,
   getAnalyticsResponseTime,
@@ -38,6 +39,7 @@ function formatCurrency(n: number, currency = "USD") {
 }
 
 export default function AnalyticsPage() {
+  const t = useTranslations("analytics");
   const authResult = useRequireAuth();
 
   const [volume, setVolume] = useState<RfqVolumePoint[]>([]);
@@ -79,19 +81,19 @@ export default function AnalyticsPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <AppShell title="Analytics">
+    <AppShell title={t("title")}>
       {loading && <div className="p-6 text-gray-500">Loading...</div>}
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4 text-sm">{error}</div>}
 
       {!loading && !error && (
         <div className="space-y-8 max-w-5xl">
           <section>
-            <h2 className="text-lg font-semibold mb-3">Win Rate</h2>
+            <h2 className="text-lg font-semibold mb-3">{t("winRate")}</h2>
             {winRate && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard label="Accepted" value={String(winRate.accepted)} />
                 <StatCard label="Rejected" value={String(winRate.rejected)} />
-                <StatCard label="Win Rate" value={`${(winRate.winRate * 100).toFixed(1)}%`} />
+                <StatCard label={t("winRate")} value={`${(winRate.winRate * 100).toFixed(1)}%`} />
               </div>
             )}
           </section>
@@ -116,9 +118,9 @@ export default function AnalyticsPage() {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
-                      <th className="text-left font-medium text-gray-500 pb-2 border-b pr-4">Date</th>
+                      <th className="text-left font-medium text-gray-500 pb-2 border-b pr-4">{t("colDate")}</th>
                       <th className="text-left font-medium text-gray-500 pb-2 border-b pr-4">Source</th>
-                      <th className="text-right font-medium text-gray-500 pb-2 border-b">Count</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 border-b">{t("colCount")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -136,7 +138,7 @@ export default function AnalyticsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3">Top Customers</h2>
+            <h2 className="text-lg font-semibold mb-3">{t("topCustomers")}</h2>
             <div className="bg-white border rounded overflow-x-auto">
               {topCustomers.length === 0 ? (
                 <p className="text-sm text-gray-500 p-4">No data</p>
@@ -145,9 +147,9 @@ export default function AnalyticsPage() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left font-medium text-gray-500 py-2 px-4">Company</th>
-                      <th className="text-right font-medium text-gray-500 py-2 px-4">Quotes</th>
-                      <th className="text-right font-medium text-gray-500 py-2 px-4">Revenue</th>
-                      <th className="text-right font-medium text-gray-500 py-2 px-4">Win Rate</th>
+                      <th className="text-right font-medium text-gray-500 py-2 px-4">{t("colQuotes")}</th>
+                      <th className="text-right font-medium text-gray-500 py-2 px-4">{t("colRevenue")}</th>
+                      <th className="text-right font-medium text-gray-500 py-2 px-4">{t("winRate")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -175,9 +177,9 @@ export default function AnalyticsPage() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left font-medium text-gray-500 py-2 px-4">Label</th>
-                      <th className="text-left font-medium text-gray-500 py-2 px-4">Type</th>
-                      <th className="text-right font-medium text-gray-500 py-2 px-4">Intakes</th>
-                      <th className="text-left font-medium text-gray-500 py-2 px-4">Last Sync</th>
+                      <th className="text-left font-medium text-gray-500 py-2 px-4">{t("colType")}</th>
+                      <th className="text-right font-medium text-gray-500 py-2 px-4">{t("colIntakes")}</th>
+                      <th className="text-left font-medium text-gray-500 py-2 px-4">{t("colLastSync")}</th>
                       <th className="text-right font-medium text-gray-500 py-2 px-4">Failures</th>
                     </tr>
                   </thead>

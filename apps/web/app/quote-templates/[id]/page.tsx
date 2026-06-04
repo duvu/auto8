@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -15,6 +16,7 @@ import { duplicateTemplate, getQuoteTemplate, updateQuoteTemplate } from "../../
 import { useRequireAuth } from "../../../lib/use-require-auth";
 
 export default function EditQuoteTemplatePage() {
+  const t = useTranslations("quoteTemplates");
   const authResult = useRequireAuth("admin");
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -118,7 +120,7 @@ export default function EditQuoteTemplatePage() {
             disabled={duplicating}
             className="btn btn-secondary text-xs"
           >
-            {duplicating ? "Duplicating…" : "Duplicate"}
+            {duplicating ? "Duplicating…" : t("duplicate")}
           </button>
         )}
       </div>

@@ -11,7 +11,7 @@
  * @param lineDiscountPct Line-level discount percentage (0–100, e.g. 10 = 10%)
  * @returns Subtotal after discount, rounded to 2 decimal places
  */
-export function calcLineSubtotal(qty: number, unitPrice: number, lineDiscountPct = 0): number {
+function calcLineSubtotal(qty: number, unitPrice: number, lineDiscountPct = 0): number {
   const gross = qty * unitPrice;
   const discountAmount = Math.round(gross * (lineDiscountPct / 100) * 100) / 100;
   return Math.round((gross - discountAmount) * 100) / 100;
@@ -24,7 +24,7 @@ export interface QuoteTotals {
   grandTotal: number; // Final total (subtotal - discount + tax), in dollars
 }
 
-export interface CalcLineItem {
+interface CalcLineItem {
   quantity: number;
   /** Unit price in dollars (Float) */
   unitPrice: number;

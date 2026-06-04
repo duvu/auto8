@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { SetupStatusView } from "@auto8/shared";
 import { AppShell } from "../../components/app-shell";
@@ -15,7 +16,12 @@ type Step = {
   href: string;
 };
 
-const STEPS: Step[] = [
+
+
+export default function SetupPage() {
+  const t = useTranslations("setup");
+
+  const STEPS: Step[] = [
   {
     key: "llmConfigured",
     title: "Configure LLM provider",
@@ -39,14 +45,12 @@ const STEPS: Step[] = [
   },
   {
     key: "teamMembersAdded",
-    title: "Invite team members",
+    title: t("stepTeam"),
     description: "Add sales operators and approvers so the team can collaborate on quotes.",
     actionLabel: "Add users →",
     href: "/users/new",
   },
 ];
-
-export default function SetupPage() {
   const authResult = useRequireAuth("admin");
   const [status, setStatus] = useState<SetupStatusView | null>(null);
   const [loading, setLoading] = useState(true);

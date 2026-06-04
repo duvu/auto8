@@ -32,4 +32,9 @@ export class AnalyticsController {
   getConnectors(@CurrentWorkspaceId() workspaceId: string) {
     return this.analyticsService.getConnectors(workspaceId);
   }
+
+  @Get("sla-summary")
+  getSlaSummary() {
+    return this.analyticsService.getSlaSummary();
+  }
 }

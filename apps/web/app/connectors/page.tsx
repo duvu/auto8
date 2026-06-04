@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import type React from "react";
@@ -20,6 +21,7 @@ function OAuth2ErrorBanner() {
 }
 
 export default function ConnectorsPage() {
+  const t = useTranslations("connectors");
   const [connectors, setConnectors] = useState<ConnectorView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export default function ConnectorsPage() {
 
   async function handleTest(id: string) {
     setWorking(id);
-    setTestResults((prev) => ({ ...prev, [id]: "Testing..." }));
+    setTestResults((prev) => ({ ...prev, [id]: t("testingConnection") }));
     try {
       const result = await testConnector(id);
       setTestResults((prev) => ({
@@ -146,13 +148,13 @@ export default function ConnectorsPage() {
   }
 
   return (
-    <AppShell title="Connectors">
+    <AppShell title={t("title")}>
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div />
         <div className="flex items-center gap-2">
           <Link href="/" className="border border-gray-400 text-gray-700 px-4 py-2 rounded hover:bg-gray-100 text-sm">Back to dashboard</Link>
-          <Link href="/connectors/new" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Add connector</Link>
+          <Link href="/connectors/new" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">{t("addConnector")}</Link>
         </div>
       </div>
 
@@ -171,12 +173,12 @@ export default function ConnectorsPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-gray-50 text-left">
-                <th className="border px-3 py-2">Label</th>
-                <th className="border px-3 py-2">Type</th>
-                <th className="border px-3 py-2">Health</th>
+                <th className="border px-3 py-2">{t("label")}</th>
+                <th className="border px-3 py-2">{t("colType")}</th>
+                <th className="border px-3 py-2">{t("colHealth")}</th>
                 <th className="border px-3 py-2">Last Sync</th>
                 <th className="border px-3 py-2">Failures</th>
-                <th className="border px-3 py-2">Actions</th>
+                <th className="border px-3 py-2">{t("colActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -188,17 +190,15 @@ export default function ConnectorsPage() {
 
                 let healthBadge: React.ReactNode;
                 if (!c.isEnabled) {
-                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500">Disabled</span>;
+                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500">{t("healthDisabled")}</span>;
                 } else if (c.failureCount > 0 || c.lastError) {
                   healthBadge = (
-                    <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700" title={c.lastError ?? undefined}>
-                      Error
-                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700" title={c.lastError ?? undefined}>{t("healthError")}</span>
                   );
                 } else if (c.lastSyncAt) {
-                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">Connected</span>;
+                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">{t("healthConnected")}</span>;
                 } else {
-                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-400">Never synced</span>;
+                  healthBadge = <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-400">{t("healthNeverSynced")}</span>;
                 }
 
                 return (
@@ -224,9 +224,9 @@ export default function ConnectorsPage() {
                           <button className="text-xs border rounded px-2 py-1 hover:bg-gray-50" type="button" disabled={working === c.id} onClick={() => void handleTest(c.id)}>Test</button>
                           <button className="text-xs border rounded px-2 py-1 hover:bg-gray-50" type="button" disabled={working === c.id || c.type === "slack"} title={c.type === "slack" ? "Slack is push-only" : undefined} onClick={() => void handleSyncNow(c.id)}>Sync now</button>
                           <button className="text-xs border rounded px-2 py-1 hover:bg-gray-50" type="button" disabled={working === c.id} onClick={() => void handleToggleHistory(c.id)}>{expandedId === c.id ? "Hide history" : "View history"}</button>
-                          <Link className="text-xs border rounded px-2 py-1 hover:bg-gray-50" href={`/connectors/${c.id}/edit`}>Edit</Link>
+                          <Link className="text-xs border rounded px-2 py-1 hover:bg-gray-50" href={`/connectors/${c.id}/edit`}>{t("edit")}</Link>
                           <button className="text-xs border rounded px-2 py-1 hover:bg-gray-50" type="button" disabled={working === c.id} onClick={() => void handleToggle(c.id, c.isEnabled)}>{c.isEnabled ? "Disable" : "Enable"}</button>
-                          <button className="text-xs border rounded px-2 py-1 hover:bg-red-50 text-red-600" type="button" disabled={working === c.id} onClick={() => void handleDelete(c.id, c.label)}>Delete</button>
+                          <button className="text-xs border rounded px-2 py-1 hover:bg-red-50 text-red-600" type="button" disabled={working === c.id} onClick={() => void handleDelete(c.id, c.label)}>{t("delete")}</button>
                         </div>
                         {testResults[c.id] && (
                           <div className="font-mono text-xs mt-1" style={{ color: testResults[c.id]?.startsWith("OK") ? "green" : "red" }}>{testResults[c.id]}</div>
@@ -252,7 +252,7 @@ export default function ConnectorsPage() {
                                   <th className="text-left px-2 py-1 border-b">Skipped</th>
                                   <th className="text-left px-2 py-1 border-b">Failed</th>
                                   <th className="text-left px-2 py-1 border-b">Status</th>
-                                  <th className="text-left px-2 py-1 border-b">Error</th>
+                                  <th className="text-left px-2 py-1 border-b">{t("healthError")}</th>
                                 </tr>
                               </thead>
                               <tbody>

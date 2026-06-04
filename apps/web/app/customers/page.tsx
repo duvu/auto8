@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 import type { CustomerView, PaginatedResponse } from "@auto8/shared";
@@ -10,6 +11,7 @@ import { deleteCustomer, getCustomers } from "../../lib/api";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 export default function CustomersPage() {
+  const t = useTranslations("customers");
   const authResult = useRequireAuth();
   const [customers, setCustomers] = useState<CustomerView[]>([]);
   const [total, setTotal] = useState(0);
@@ -48,11 +50,11 @@ export default function CustomersPage() {
   if (authResult.forbidden) return <div className="p-6 text-red-600">Access Denied</div>;
 
   return (
-    <AppShell title="Customers">
+    <AppShell title={t("title")}>
       <div className="flex items-center gap-3 mb-4">
         <input
           type="text"
-          placeholder="Search customers…"
+          placeholder={t("searchPlaceholder")}
           value={q}
           onChange={(e) => { setQ(e.target.value); setPage(1); }}
           className="input w-64"
@@ -70,15 +72,34 @@ export default function CustomersPage() {
         <p className="text-sm text-muted">No customers found.</p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border">
+          {/* Mobile card layout */}
+          <div className="md:hidden flex flex-col gap-3">
+            {customers.map((c) => (
+              <div key={c.id} className="bg-white border border-border rounded-xl p-4 flex flex-col gap-1">
+                <Link href={`/customers/${c.id}`} className="font-semibold text-ink hover:underline">{c.companyName}</Link>
+                {c.contactName && <p className="text-sm text-muted">{c.contactName}</p>}
+                {c.email && <p className="text-xs text-muted">{c.email}</p>}
+                {c.phone && <p className="text-xs text-muted">{c.phone}</p>}
+                <div className="flex gap-3 mt-1">
+                  <Link href={`/customers/${c.id}`} className="text-xs text-accent hover:underline">Edit</Link>
+                  {authResult.user?.role === "admin" && (
+                    <button type="button" onClick={() => void handleDelete(c.id, c.companyName)} className="text-xs text-red-500 hover:underline">Delete</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead className="bg-accent-soft text-muted uppercase text-xs">
                 <tr>
-                  <th className="px-4 py-3 text-left">Company</th>
-                  <th className="px-4 py-3 text-left">Contact</th>
-                  <th className="px-4 py-3 text-left">Email</th>
-                  <th className="px-4 py-3 text-left">Phone</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 text-left">{t("colCompany")}</th>
+                  <th className="px-4 py-3 text-left">{t("colContact")}</th>
+                  <th className="px-4 py-3 text-left">{t("email")}</th>
+                  <th className="px-4 py-3 text-left">{t("phone")}</th>
+                  <th className="px-4 py-3 text-right">{t("colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

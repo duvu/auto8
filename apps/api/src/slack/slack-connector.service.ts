@@ -1,20 +1,50 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException, type Type } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorSyncSummary, ConnectorTestResult, SlackRfqIntakeInput } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, SlackRfqIntakeInput, ConnectorFieldDef, ConnectorType } from "@auto8/shared";
+import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
-import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { ConnectorPlugin } from "../plugin-registry/plugin.interfaces";
 import { optionalString } from "../common/utils/string.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 
 type RequestHeaders = Record<string, string | string[] | undefined>;
 
+type SlackMessageEventBody = {
+  type?: string;
+  bot_id?: string;
+  subtype?: string;
+  channel?: string;
+  channel_name?: string;
+  user?: string;
+  user_profile?: {
+    display_name?: string;
+    email?: string;
+  };
+  ts?: string;
+  text?: string;
+};
+
+type SlackEventsApiBody = {
+  type?: string;
+  challenge?: string;
+  team_id?: string;
+  team_domain?: string;
+  event?: SlackMessageEventBody;
+};
+
 @Injectable()
-export class SlackConnectorService implements ConnectorService {
+export class SlackConnectorService implements ConnectorPlugin {
+  readonly type: ConnectorType = "slack";
+  readonly serviceToken: Type<unknown> = SlackConnectorService;
+  readonly fieldDefs: ConnectorFieldDef[] = CONNECTOR_FIELD_DEFS["slack"];
+  readonly syncable: boolean = false;
+
   private readonly logger = new Logger(SlackConnectorService.name);
 
   constructor(
@@ -28,8 +58,8 @@ export class SlackConnectorService implements ConnectorService {
   }
 
   /**
-   * Slack is push-only (webhook/events model). This method exists to satisfy
-   * the ConnectorService interface but does nothing when called directly.
+   * Slack is push-only (webhook/events model). This method satisfies the
+   * connector plugin sync contract but does nothing when called directly.
    */
   async sync(_connector: Connector): Promise<ConnectorSyncSummary> {
     this.logger.debug("Slack connector is push-only — sync() is a no-op.");
@@ -131,7 +161,7 @@ export class SlackConnectorService implements ConnectorService {
    * Supports url_verification challenge and event_callback for message events.
    */
   async handleEvent(
-    body: Record<string, any>,
+    body: SlackEventsApiBody,
     rawPayload: string,
     headers: RequestHeaders
   ): Promise<{ challenge?: string; ok: boolean }> {

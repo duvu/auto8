@@ -1,13 +1,13 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { PluginRegistryService } from "./plugin-registry.service";
-import type { PluginManifest } from "./plugin.interfaces";
+import type { ConnectorPluginManifest, ModulePluginManifest, PluginManifest } from "./plugin.interfaces";
 
 // Mock service classes used as serviceToken (class reference)
 class GmailConnectorService {}
 class SlackConnectorService {}
 class OutlookConnectorService {}
 
-function makeGmailManifest(): PluginManifest {
+function makeGmailManifest(): ConnectorPluginManifest {
   return {
     name: "GmailPlugin",
     module: class GmailModule {},
@@ -20,7 +20,7 @@ function makeGmailManifest(): PluginManifest {
   };
 }
 
-function makeSlackManifest(): PluginManifest {
+function makeSlackManifest(): ConnectorPluginManifest {
   return {
     name: "SlackPlugin",
     module: class SlackModule {},
@@ -33,7 +33,7 @@ function makeSlackManifest(): PluginManifest {
   };
 }
 
-function makeOutlookManifest(): PluginManifest {
+function makeOutlookManifest(): ConnectorPluginManifest {
   return {
     name: "OutlookPlugin",
     module: class OutlookModule {},
@@ -46,37 +46,37 @@ function makeOutlookManifest(): PluginManifest {
   };
 }
 
-function makeWebhooksManifest(): PluginManifest {
+function makeWebhooksManifest(): ModulePluginManifest {
   return {
     name: "WebhooksPlugin",
     module: class WebhooksModule {},
-    // no connector
   };
 }
 
-function makeRfqsManifest(): PluginManifest {
+function makeRfqsManifest(): ModulePluginManifest {
   return {
     name: "RfqsPlugin",
     module: class RfqsModule {},
-    // no connector
   };
 }
 
 /**
- * Build a PluginRegistryService with injected manifests and a mock ModuleRef.
+ * Build a PluginRegistryService with injected manifests and an optional mock ModuleRef.
  * `resolveToken` controls what moduleRef.get() returns.
  */
 function buildService(
   manifests: PluginManifest[],
   resolveToken?: (token: unknown) => unknown,
 ): PluginRegistryService {
+  const svc = new PluginRegistryService(manifests);
   const moduleRef = {
     get: vi.fn((token: unknown) => {
       if (resolveToken) return resolveToken(token);
       return {};
     }),
   } as never;
-  return new PluginRegistryService(manifests, moduleRef);
+  svc.setModuleRef(moduleRef);
+  return svc;
 }
 
 describe("PluginRegistryService", () => {
@@ -93,7 +93,7 @@ describe("PluginRegistryService", () => {
       expect(() => svc.onModuleInit()).toThrow(/Duplicate connector type/);
     });
 
-    it("ignores non-connector manifests (no connector field)", () => {
+    it("ignores non-connector manifests (ModulePluginManifest without connector field)", () => {
       const svc = buildService([makeWebhooksManifest()]);
       svc.onModuleInit();
       expect(svc.getAllConnectorPlugins()).toHaveLength(0);
@@ -104,20 +104,36 @@ describe("PluginRegistryService", () => {
       svc.onModuleInit();
       expect(svc.getAllConnectorPlugins()).toHaveLength(3);
     });
+
+    it("handles mixed ConnectorPluginManifest and ModulePluginManifest in same array", () => {
+      const svc = buildService([makeGmailManifest(), makeWebhooksManifest(), makeRfqsManifest()]);
+      svc.onModuleInit();
+      expect(svc.getAllConnectorPlugins()).toHaveLength(1);
+      expect(svc.getConnectorPlugin("gmail")).toBeDefined();
+    });
   });
 
   // ── validate() ─────────────────────────────────────────────────────────────
   describe("validate", () => {
-    it("throws when a connector serviceToken cannot be resolved", () => {
+    it("warns (not throws) when a connector serviceToken cannot be resolved", () => {
       const svc = buildService([makeGmailManifest()], () => {
         throw new Error("No provider");
       });
-      expect(() => svc.onModuleInit()).toThrow(/cannot be resolved/);
+      svc.onModuleInit();
+      // validate() warns but does not throw
+      expect(() => svc.validate()).not.toThrow();
     });
 
     it("does not throw when all connector serviceTokens resolve successfully", () => {
       const svc = buildService([makeGmailManifest()], () => new GmailConnectorService());
-      expect(() => svc.onModuleInit()).not.toThrow();
+      svc.onModuleInit();
+      expect(() => svc.validate()).not.toThrow();
+    });
+
+    it("ModulePluginManifest has no connector entry in registry", () => {
+      const svc = buildService([makeWebhooksManifest(), makeRfqsManifest()]);
+      svc.onModuleInit();
+      expect(svc.getAllConnectorPlugins()).toHaveLength(0);
     });
   });
 
@@ -148,6 +164,12 @@ describe("PluginRegistryService", () => {
 
     it("exposes class reference as serviceToken", () => {
       expect(service.getConnectorPlugin("gmail")?.serviceToken).toBe(GmailConnectorService);
+    });
+
+    it("reads syncable correctly from ConnectorPluginManifest", () => {
+      const outlookSvc = buildService([makeOutlookManifest()]);
+      outlookSvc.onModuleInit();
+      expect(outlookSvc.getConnectorPlugin("outlook")?.syncable).toBe(true);
     });
   });
 

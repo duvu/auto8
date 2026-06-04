@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, UnauthorizedException, type Type } from "@nestjs/common";
 import type { Connector } from "@prisma/client";
 
-import type { ConnectorSyncSummary, ConnectorTestResult } from "@auto8/shared";
+import type { ConnectorSyncSummary, ConnectorTestResult, ConnectorFieldDef, ConnectorType } from "@auto8/shared";
+import { CONNECTOR_FIELD_DEFS } from "@auto8/shared";
 
-import type { ConnectorService, NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { NormalizedRfqIntake } from "../connectors/connector.interface";
+import type { ConnectorPlugin } from "../plugin-registry/plugin.interfaces";
 import { PrismaService } from "../prisma/prisma.service";
 import { RfqIntakeService } from "../rfqs/rfq-intake.service";
 
@@ -39,7 +41,12 @@ interface TgUpdate {
 }
 
 @Injectable()
-export class TelegramConnectorService implements ConnectorService {
+export class TelegramConnectorService implements ConnectorPlugin {
+  readonly type: ConnectorType = "telegram";
+  readonly serviceToken: Type<unknown> = TelegramConnectorService;
+  readonly fieldDefs: ConnectorFieldDef[] = CONNECTOR_FIELD_DEFS["telegram"];
+  readonly syncable: boolean = false;
+
   private readonly logger = new Logger(TelegramConnectorService.name);
 
   constructor(
